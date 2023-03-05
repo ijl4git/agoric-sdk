@@ -48,7 +48,8 @@
     "@endo/marshal": "^1.0.1",
     "@endo/nat": "^5.0.1",
     "@endo/patterns": "^1.0.1",
-    "@endo/promise-kit": "^1.0.1"
+    "@endo/promise-kit": "^1.0.1",
+    "@agoric/zone": "^0.2.2"
   },
   "devDependencies": {
     "@agoric/swingset-vat": "^0.32.2",
