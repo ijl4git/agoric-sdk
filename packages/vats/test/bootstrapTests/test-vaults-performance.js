@@ -113,12 +113,14 @@ const perfObserver = new PerformanceObserver(items => {
 });
 perfObserver.observe({ entryTypes: ['measure'] });
 
-// NB: keep skipped in master because this is too long for CI
-// UNTIL: https://github.com/Agoric/agoric-sdk/issues/7279
-test.skip('stress vaults', async t => {
+test('stress vaults', async t => {
   const { walletFactoryDriver } = t.context;
 
-  const wd = await walletFactoryDriver.provideSmartWallet('agoric1open');
+  const wds = await Promise.all(
+    [...Array(5)].map(async (_, i) =>
+      walletFactoryDriver.provideSmartWallet(`agoric1open${i + 1}`),
+    ),
+  );
 
   /**
    * @param {number} i
@@ -129,6 +131,8 @@ test.skip('stress vaults', async t => {
     assert.typeof(i, 'number');
     assert.typeof(n, 'number');
     assert.typeof(r, 'number');
+
+    const wd = wds[r - 1];
 
     const offerId = `open-vault-${i}-of-${n}-round-${r}`;
     await wd.executeOfferMaker(Offers.vaults.OpenVault, {
@@ -163,11 +167,11 @@ test.skip('stress vaults', async t => {
 
   // clear out for a baseline
   await snapshotHeap('start');
-  // 10 is enough to compare retention in heaps
-  await openN(10, 1);
-  await snapshotHeap('round1');
-  await openN(10, 2);
-  await snapshotHeap('round2');
+  for (let i = 1; i <= 5; i += 1) {
+    // 10 is enough to compare retention in heaps
+    await openN(100, i);
+    await snapshotHeap(`round${i}`);
+  }
 
   // let perfObserver get the last measurement
   await eventLoopIteration();
