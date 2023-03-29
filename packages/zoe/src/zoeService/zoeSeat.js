@@ -21,7 +21,10 @@ const ZoeSeatIKit = harden({
     replaceAllocation: M.call(AmountKeywordRecordShape).returns(),
     exit: M.call(M.any()).returns(),
     fail: M.call(M.any()).returns(),
-    resolveExitAndResult: M.call(M.promise(), ExitObjectShape).returns(),
+    resolveExitAndResult: M.call({
+      offerResultPromise: M.promise(),
+      exitObj: ExitObjectShape,
+    }).returns(),
     getExitSubscriber: M.call().returns(SubscriberShape),
     // The return promise is empty, but doExit relies on settlement as a signal
     // that the payouts have settled. The exit publisher is notified after that.
@@ -88,7 +91,10 @@ export const makeZoeSeatAdminFactory = baggage => {
   // the kit here. When resolveExitAndResult() is called, it saves
   // state.offerResult and resolves the promise if it exists, then removes the
   // table entry.
-  const ephemeralOfferResultStore = new Map();
+  /**
+   * @typedef {WeakMap<ZCFSeat, unknown>}
+   */
+  const ephemeralOfferResultStore = new WeakMap();
 
   return prepareExoClassKit(
     baggage,
@@ -176,32 +182,44 @@ export const makeZoeSeatAdminFactory = baggage => {
           );
         },
         // called only for seats resulting from offers.
-        resolveExitAndResult(offerResultPromise, exitObj) {
+        /** @param {HandleOfferResult} result */
+        resolveExitAndResult({ offerResultPromise, exitObj }) {
           const { state, facets } = this;
 
-          if (ephemeralOfferResultStore.has(facets.userSeat)) {
-            const pKit = ephemeralOfferResultStore.get(facets.userSeat);
-            E.when(
-              offerResultPromise,
-              offerResult => {
-                pKit.resolve(offerResult);
-                state.offerResult = offerResult;
-                state.offerResultValid = true;
-                ephemeralOfferResultStore.delete(facets.userSeat);
-              },
-              e => {
-                pKit.reject(e);
-                state.offerResult = pKit.promise;
-                state.offerResultValid = true;
-                ephemeralOfferResultStore.delete(facets.userSeat);
-              },
-            );
-          } else {
+          !state.offerResultValid ||
+            Fail`offerResultValid before offerResultPromise`;
+
+          if (!ephemeralOfferResultStore.has(facets.userSeat)) {
+            // this was called before getOfferResult
             const kit = makePromiseKit();
             kit.resolve(offerResultPromise);
             ephemeralOfferResultStore.set(facets.userSeat, kit);
-            state.offerResultValid = false;
           }
+
+          const pKit = ephemeralOfferResultStore.get(facets.userSeat);
+          E.when(
+            offerResultPromise,
+            offerResult => {
+              pKit.resolve(offerResult);
+              try {
+                // The next line will fail if offerResult is not durable.
+                // So for non-durable results, offerResultValid stays false and
+                // the promise stays in ephemeralOfferResultStore to be returned in getOfferResult
+                state.offerResult = offerResult;
+                state.offerResultValid = true;
+                ephemeralOfferResultStore.delete(facets.userSeat);
+              } catch (err) {
+                console.warn(
+                  `non-durable offer result will be lost upon zoe vat termination: ${offerResult}`,
+                );
+              }
+            },
+            e => {
+              pKit.reject(e);
+              // NB: leave the rejected promise in the ephemeralOfferResultStore
+              // because it can't go in durable state
+            },
+          );
 
           state.exitObj = exitObj;
         },
@@ -242,12 +260,15 @@ export const makeZoeSeatAdminFactory = baggage => {
             () => state.payouts[keyword],
           );
         },
+
         async getOfferResult() {
           const { state, facets } = this;
 
           if (state.offerResultValid) {
             return state.offerResult;
-          } else if (ephemeralOfferResultStore.has(facets.userSeat)) {
+          }
+
+          if (ephemeralOfferResultStore.has(facets.userSeat)) {
             return ephemeralOfferResultStore.get(facets.userSeat).promise;
           }
 
