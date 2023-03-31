@@ -8,7 +8,7 @@ import { forEachPublicationRecord } from './storesub.js';
 export const PublicTopicShape = M.splitRecord(
   {
     subscriber: SubscriberShape,
-    storagePath: M.promise(/* string */),
+    storagePath: M.or(M.string(), M.promise(/* string */)),
   },
   { description: M.string() },
 );

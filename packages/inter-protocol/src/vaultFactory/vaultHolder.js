@@ -110,7 +110,9 @@ export const prepareVaultHolder = (baggage, marshaller) => {
             vault: {
               description: 'Vault holder status',
               subscriber,
-              storagePath: memoizedPath(storageNode),
+              storagePath: /** @type {ERef<string>} */ (
+                memoizedPath(storageNode)
+              ),
             },
           });
         },

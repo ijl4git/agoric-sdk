@@ -1,5 +1,9 @@
 import { AmountMath, AmountShape } from '@agoric/ertp';
-import { makeTracer, makeTypeGuards } from '@agoric/internal';
+import {
+  deeplyFulfilledObject,
+  makeTracer,
+  makeTypeGuards,
+} from '@agoric/internal';
 import { M, prepareExoClassKit } from '@agoric/vat-data';
 import {
   atomicTransfer,
@@ -653,9 +657,9 @@ export const prepareVault = (baggage, marshaller, zcf) => {
         /**
          *
          * @param {ZCFSeat} seat
-         * @returns {VaultKit}
+         * @returns {Promise<VaultKit>}
          */
-        makeTransferInvitationHook(seat) {
+        async makeTransferInvitationHook(seat) {
           const { state, facets } = this;
 
           const { self, helper } = facets;
@@ -667,7 +671,7 @@ export const prepareVault = (baggage, marshaller, zcf) => {
           state.outerUpdater = vaultKit.vaultUpdater;
           helper.updateUiState();
 
-          return vaultKit;
+          return deeplyFulfilledObject(vaultKit);
         },
       },
       self: {
@@ -742,7 +746,7 @@ export const prepareVault = (baggage, marshaller, zcf) => {
           const vaultKit = makeVaultKit(self, storageNode);
           state.outerUpdater = vaultKit.vaultUpdater;
           helper.updateUiState();
-          return vaultKit;
+          return deeplyFulfilledObject(vaultKit);
         },
 
         /**
@@ -874,7 +878,7 @@ export const prepareVault = (baggage, marshaller, zcf) => {
             vaultState: phase,
           };
           return zcf.makeInvitation(
-            seat => helper.makeTransferInvitationHook(seat),
+            async seat => helper.makeTransferInvitationHook(seat),
             state.manager.scopeDescription('TransferVault'),
             transferState,
           );
