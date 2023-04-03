@@ -1,9 +1,10 @@
 /**
  * @file Use-object for the owner of a vault
  */
+import { E } from '@endo/far';
 import { AmountShape } from '@agoric/ertp';
 import {
-  pipeTopicToStorage,
+  // pipeTopicToStorage,
   prepareDurablePublishKit,
   SubscriberShape,
   TopicsRecordShape,
@@ -41,6 +42,12 @@ const HolderI = M.interface('holder', {
 export const prepareVaultHolder = (baggage, marshaller) => {
   const memoizedPath = makeStorageNodePathProvider(baggage);
 
+  const sendToStorage = async (value, storageNode) => {
+    const marshalled = await E(marshaller).serialize(value);
+    const serialized = JSON.stringify(marshalled);
+    return E(storageNode).setValue(serialized);
+  };
+
   const makeVaultHolderPublishKit = prepareDurablePublishKit(
     baggage,
     'Vault Holder publish kit',
@@ -52,6 +59,11 @@ export const prepareVaultHolder = (baggage, marshaller) => {
     {
       helper: UnguardedHelperI,
       holder: HolderI,
+      updater: M.interface('updater', {
+        publish: M.call(M.any()).returns(),
+        finish: M.call(M.any()).returns(),
+        fail: M.call(M.any()).returns(),
+      }),
       invitationMakers: M.interface('invitationMakers', {
         AdjustBalances: M.call().returns(M.promise()),
         CloseVault: M.call().returns(M.promise()),
@@ -68,7 +80,7 @@ export const prepareVaultHolder = (baggage, marshaller) => {
       /** @type {PublishKit<VaultNotification>} */
       const { subscriber, publisher } = makeVaultHolderPublishKit();
 
-      pipeTopicToStorage(subscriber, storageNode, marshaller);
+      // pipeTopicToStorage(subscriber, storageNode, marshaller, 'vaultHolder');
 
       return { publisher, storageNode, subscriber, vault };
     },
@@ -85,7 +97,25 @@ export const prepareVaultHolder = (baggage, marshaller) => {
           return vault;
         },
         getUpdater() {
-          return this.state.publisher;
+          return this.facets.updater;
+        },
+      },
+      updater: {
+        publish(nonFinalValue) {
+          const { publisher, storageNode } = this.state;
+          // console.log('vaultHolder.updater.publish', nonFinalValue);
+          publisher.publish(nonFinalValue);
+          sendToStorage(nonFinalValue, storageNode);
+        },
+        finish(completion) {
+          const { publisher, storageNode } = this.state;
+          // console.log('vaultHolder.updater.finish', completion);
+          publisher.finish(completion);
+          sendToStorage(completion, storageNode);
+        },
+        fail(reason) {
+          const { publisher } = this.state;
+          return publisher.fail(reason);
         },
       },
       invitationMakers: {

@@ -39,13 +39,20 @@ export const TopicsRecordShape = M.recordOf(M.string(), PublicTopicShape);
  * @param {ERef<ReturnType<import('@endo/marshal').makeMarshal>>} marshaller
  * @returns {void}
  */
-export const pipeTopicToStorage = (topic, storageNode, marshaller) => {
+export const pipeTopicToStorage = (topic, storageNode, marshaller, debug) => {
   assertAllDefined({ topic, storageNode, marshaller });
 
   const marshallToStorage = makeSerializeToStorage(storageNode, marshaller);
 
+  const actualMarshallToStorage = !debug
+    ? marshallToStorage
+    : value => {
+        console.log('pipeTopicToStorage', debug, value);
+        return marshallToStorage(value);
+      };
+
   // Start publishing the source.
-  forEachPublicationRecord(topic, marshallToStorage).catch(err => {
+  forEachPublicationRecord(topic, actualMarshallToStorage).catch(err => {
     // TODO: How should we handle and/or surface this failure?
     // https://github.com/Agoric/agoric-sdk/pull/5766#discussion_r922498088
     console.error('followAndStoreTopic failed to iterate', err);
