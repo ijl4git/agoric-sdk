@@ -332,6 +332,7 @@ export async function initializeSwingset(
     case 'local':
     case 'xsnap': // preferred
     case 'xs-worker': // alias accepted for now
+    case 'node-subprocess':
       config.defaultManagerType = defaultManagerType;
       break;
     case undefined:

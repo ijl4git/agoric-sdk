@@ -14,6 +14,7 @@ import { initSwingStore } from '@agoric/swing-store';
 
 import { checkBundle } from '@endo/check-bundle/lite.js';
 import engineGC from '../lib-nodejs/engine-gc.js';
+import { startSubprocessWorker } from '../lib-nodejs/spawnSubprocessWorker.js';
 import { waitUntilQuiescent } from '../lib-nodejs/waitUntilQuiescent.js';
 import { makeGcAndFinalize } from '../lib-nodejs/gc-and-finalize.js';
 import { kslot } from '../lib/kmarshal.js';
@@ -28,6 +29,7 @@ import {
   makeXsnapBundleData,
 } from './bundle-handler.js';
 import { makeStartXSnap } from './startXSnap.js';
+import { makeStartSubprocessWorkerNode } from './startNodeSubprocess.js';
 
 /** @param {Uint8Array} bytes */
 export function computeSha512(bytes) {
@@ -135,6 +137,9 @@ export async function makeSwingsetController(
     debug: !!env.XSNAP_DEBUG,
     workerTraceRootPath: env.XSNAP_TEST_RECORD,
   });
+  const startSubprocessWorkerNode = makeStartSubprocessWorkerNode(
+    startSubprocessWorker,
+  );
 
   function writeSlogObject(obj) {
     if (!slogSender) {
@@ -208,6 +213,7 @@ export async function makeSwingsetController(
     debugPrefix,
     vatEndowments,
     makeConsole,
+    startSubprocessWorkerNode,
     startXSnap,
     slogCallbacks,
     writeSlogObject,
