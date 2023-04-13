@@ -228,12 +228,12 @@ const makeBidOffer = (_brands, opts) => {
   });
   const { parseAmount } = opts;
   const proposal = {
-    give: { Currency: parseAmount(opts.give) },
+    give: { Bid: parseAmount(opts.give) },
     ...(opts.wantMinimum
       ? { want: { Collateral: parseAmount(opts.wantMinimum) } }
       : {}),
   };
-  const istBrand = proposal.give.Currency.brand;
+  const istBrand = proposal.give.Bid.brand;
   const maxBuy = parseAmount(opts.maxBuy);
 
   const bounds = (x, lo, hi) => {

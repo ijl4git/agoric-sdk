@@ -39,7 +39,7 @@ const DEFAULT_DECIMALS = 9;
  *
  * The book contains orders for the collateral. It holds two kinds of
  * orders:
- *   - Prices express the bid in terms of a Currency amount
+ *   - Prices express the bid in terms of a Bid amount
  *   - Scaled bids express the bid in terms of a discount (or markup) from the
  *     most recent oracle price.
  *
@@ -65,11 +65,11 @@ const trace = makeTracer('AucBook', false);
  */
 /**
  *
- * @param {Brand<'nat'>} currencyBrand
+ * @param {Brand<'nat'>} bidBrand
  * @param {Brand<'nat'>} collateralBrand
  */
-export const makeBidSpecShape = (currencyBrand, collateralBrand) => {
-  const currencyAmountShape = makeNatAmountShape(currencyBrand);
+export const makeBidSpecShape = (bidBrand, collateralBrand) => {
+  const bidAmountShape = makeNatAmountShape(bidBrand);
   const collateralAmountShape = makeNatAmountShape(collateralBrand);
   return M.splitRecord(
     { maxBuy: collateralAmountShape },
@@ -77,13 +77,10 @@ export const makeBidSpecShape = (currencyBrand, collateralBrand) => {
       exitAfterBuy: M.boolean(),
       // xxx should have exactly one of these properties
       offerPrice: makeBrandedRatioPattern(
-        currencyAmountShape,
+        bidAmountShape,
         collateralAmountShape,
       ),
-      offerBidScaling: makeBrandedRatioPattern(
-        currencyAmountShape,
-        currencyAmountShape,
-      ),
+      offerBidScaling: makeBrandedRatioPattern(bidAmountShape, bidAmountShape),
     },
   );
 };
@@ -118,9 +115,9 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
     collateralBrand: M.any(),
     collateralSeat: M.any(),
     collateralAmountShape: M.any(),
-    currencyBrand: M.any(),
-    currencySeat: M.any(),
-    currencyAmountShape: M.any(),
+    bidBrand: M.any(),
+    bidHoldingSeat: M.any(),
+    bidAmountShape: M.any(),
     priceAuthority: M.any(),
     updatingOracleQuote: M.any(),
     bookDataKit: M.any(),
@@ -138,16 +135,16 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
     'AuctionBook',
     undefined,
     /**
-     * @param {Brand<'nat'>} currencyBrand
+     * @param {Brand<'nat'>} bidBrand
      * @param {Brand<'nat'>} collateralBrand
      * @param {PriceAuthority} pAuthority
      * @param {StorageNode} node
      */
-    (currencyBrand, collateralBrand, pAuthority, node) => {
-      assertAllDefined({ currencyBrand, collateralBrand, pAuthority });
-      const zeroCurrency = makeEmpty(currencyBrand);
+    (bidBrand, collateralBrand, pAuthority, node) => {
+      assertAllDefined({ bidBrand, collateralBrand, pAuthority });
+      const zeroBid = makeEmpty(bidBrand);
       const zeroRatio = makeRatioFromAmounts(
-        zeroCurrency,
+        zeroBid,
         AmountMath.make(collateralBrand, 1n),
       );
 
@@ -156,17 +153,17 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
       // may be offers in the book, but these seats will be empty, with all assets
       // returned to the funders.
       const { zcfSeat: collateralSeat } = zcf.makeEmptySeatKit();
-      const { zcfSeat: currencySeat } = zcf.makeEmptySeatKit();
+      const { zcfSeat: bidHoldingSeat } = zcf.makeEmptySeatKit();
 
-      const currencyAmountShape = makeNatAmountShape(currencyBrand);
+      const bidAmountShape = makeNatAmountShape(bidBrand);
       const collateralAmountShape = makeNatAmountShape(collateralBrand);
       const scaledBidBook = makeScaledBidBook(
-        makeBrandedRatioPattern(currencyAmountShape, currencyAmountShape),
+        makeBrandedRatioPattern(bidAmountShape, bidAmountShape),
         collateralBrand,
       );
 
       const priceBook = makePriceBook(
-        makeBrandedRatioPattern(currencyAmountShape, collateralAmountShape),
+        makeBrandedRatioPattern(bidAmountShape, collateralAmountShape),
         collateralBrand,
       );
 
@@ -181,9 +178,9 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
         collateralBrand,
         collateralSeat,
         collateralAmountShape,
-        currencyBrand,
-        currencySeat,
-        currencyAmountShape,
+        bidBrand,
+        bidHoldingSeat,
+        bidAmountShape,
 
         priceAuthority: pAuthority,
         updatingOracleQuote: zeroRatio,
@@ -275,7 +272,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
          */
         settle(seat, collateralWanted) {
           const { collateralSeat, collateralBrand } = this.state;
-          const { Currency: currencyAlloc } = seat.getCurrentAllocation();
+          const { Bid: bidAlloc } = seat.getCurrentAllocation();
           const { Collateral: collateralAvailable } =
             collateralSeat.getCurrentAllocation();
           if (!collateralAvailable || AmountMath.isEmpty(collateralAvailable)) {
@@ -288,39 +285,35 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
             collateralAvailable,
           );
 
-          const { curAuctionPrice, currencySeat, remainingProceedsGoal } =
+          const { curAuctionPrice, bidHoldingSeat, remainingProceedsGoal } =
             this.state;
           curAuctionPrice !== null ||
             Fail`auctionPrice must be set before each round`;
           assert(curAuctionPrice);
 
-          const currencyNeeded = ceilMultiplyBy(
+          const bidNeeded = ceilMultiplyBy(
             initialCollateralTarget,
             curAuctionPrice,
           );
-          if (AmountMath.isEmpty(currencyNeeded)) {
+          if (AmountMath.isEmpty(bidNeeded)) {
             seat.fail(Error('price fell to zero'));
             return makeEmpty(collateralBrand);
           }
 
-          const initialCurrencyTarget = AmountMath.min(
-            currencyNeeded,
-            currencyAlloc,
-          );
-          const currencyLimit = remainingProceedsGoal
-            ? AmountMath.min(remainingProceedsGoal, initialCurrencyTarget)
-            : initialCurrencyTarget;
+          const initialBidTarget = AmountMath.min(bidNeeded, bidAlloc);
+          const bidLimit = remainingProceedsGoal
+            ? AmountMath.min(remainingProceedsGoal, initialBidTarget)
+            : initialBidTarget;
           const isRaiseLimited =
-            remainingProceedsGoal ||
-            !AmountMath.isGTE(currencyLimit, currencyNeeded);
+            remainingProceedsGoal || !AmountMath.isGTE(bidLimit, bidNeeded);
 
-          const [currencyTarget, collateralTarget] = isRaiseLimited
-            ? [currencyLimit, floorDivideBy(currencyLimit, curAuctionPrice)]
-            : [initialCurrencyTarget, initialCollateralTarget];
+          const [bidTarget, collateralTarget] = isRaiseLimited
+            ? [bidLimit, floorDivideBy(bidLimit, curAuctionPrice)]
+            : [initialBidTarget, initialCollateralTarget];
 
           trace('settle', {
             collateral: collateralTarget,
-            currency: currencyTarget,
+            bid: bidTarget,
             remainingProceedsGoal,
           });
 
@@ -333,14 +326,14 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
             zcf,
             harden([
               [collateralSeat, seat, { Collateral: collateralTarget }],
-              [seat, currencySeat, { Currency: currencyTarget }],
+              [seat, bidHoldingSeat, { Bid: bidTarget }],
             ]),
           );
 
           if (remainingProceedsGoal) {
             this.state.remainingProceedsGoal = AmountMath.subtract(
               remainingProceedsGoal,
-              currencyTarget,
+              bidTarget,
             );
           }
           return collateralTarget;
@@ -382,7 +375,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
           if (
             (exitAfterBuy && !AmountMath.isEmpty(collateralSold)) ||
             AmountMath.isEmpty(stillWant) ||
-            AmountMath.isEmpty(seat.getCurrentAllocation().Currency)
+            AmountMath.isEmpty(seat.getCurrentAllocation().Bid)
           ) {
             seat.exit();
           } else {
@@ -437,7 +430,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
           if (
             (exitAfterBuy && !AmountMath.isEmpty(collateralSold)) ||
             AmountMath.isEmpty(stillWant) ||
-            AmountMath.isEmpty(seat.getCurrentAllocation().Currency)
+            AmountMath.isEmpty(seat.getCurrentAllocation().Bid)
           ) {
             seat.exit();
           } else {
@@ -463,7 +456,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
             startPrice: state.lockedPriceForRound,
             startProceedsGoal: state.startProceedsGoal,
             remainingProceedsGoal: state.remainingProceedsGoal,
-            proceedsRaised: allocation.Currency,
+            proceedsRaised: allocation.Bid,
             startCollateral: state.startCollateral,
             collateralAvailable,
             currentPriceLevel: state.curAuctionPrice,
@@ -490,7 +483,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
           // allocation will be the larger of the existing ratio and the ratio
           // implied by the new deposit. Add the new collateral and raise
           // startProceedsGoal so it's proportional to the new ratio. This can
-          // result in raising more currency than one depositor wanted, but
+          // result in raising more bid than one depositor wanted, but
           // that's better than not selling as much as the other desired.
 
           const allocation = collateralSeat.getCurrentAllocation();
@@ -600,7 +593,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
               const alloc = seat.getCurrentAllocation();
               if (
                 (exitAfterBuy && !AmountMath.isEmpty(collateralSold)) ||
-                AmountMath.isEmpty(alloc.Currency) ||
+                AmountMath.isEmpty(alloc.Bid) ||
                 ('Collateral' in alloc &&
                   AmountMath.isGTE(alloc.Collateral, wanted))
               ) {
@@ -646,17 +639,13 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
          * @param {boolean} trySettle
          */
         addOffer(bidSpec, seat, trySettle) {
-          const { currencyBrand, collateralBrand } = this.state;
-          const BidSpecShape = makeBidSpecShape(currencyBrand, collateralBrand);
+          const { bidBrand, collateralBrand } = this.state;
+          const BidSpecShape = makeBidSpecShape(bidBrand, collateralBrand);
 
           mustMatch(bidSpec, BidSpecShape);
           const { give } = seat.getProposal();
-          const { currencyAmountShape } = this.state;
-          mustMatch(
-            give.Currency,
-            currencyAmountShape,
-            'give must include "Currency"',
-          );
+          const { bidAmountShape } = this.state;
+          mustMatch(give.Bid, bidAmountShape, 'give must include "Bid"');
 
           const { helper } = this.facets;
           const { exitAfterBuy } = bidSpec;
@@ -685,8 +674,8 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
           }
         },
         getSeats() {
-          const { collateralSeat, currencySeat } = this.state;
-          return { collateralSeat, currencySeat };
+          const { collateralSeat, bidHoldingSeat } = this.state;
+          return { collateralSeat, bidHoldingSeat };
         },
         exitAllSeats() {
           const { priceBook, scaledBidBook } = this.state;
@@ -718,15 +707,15 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
     },
     {
       finish: ({ state }) => {
-        const { collateralBrand, currencyBrand, priceAuthority } = state;
-        assertAllDefined({ collateralBrand, currencyBrand, priceAuthority });
+        const { collateralBrand, bidBrand, priceAuthority } = state;
+        assertAllDefined({ collateralBrand, bidBrand, priceAuthority });
         void E.when(
           E(collateralBrand).getDisplayInfo(),
           ({ decimalPlaces = DEFAULT_DECIMALS }) => {
             // TODO(#6946) use this to keep a current price that can be published in state.
             const quoteNotifier = E(priceAuthority).makeQuoteNotifier(
               AmountMath.make(collateralBrand, 10n ** BigInt(decimalPlaces)),
-              currencyBrand,
+              bidBrand,
             );
             void observeNotifier(quoteNotifier, {
               updateState: quote => {

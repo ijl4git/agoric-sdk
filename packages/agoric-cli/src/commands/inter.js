@@ -33,15 +33,6 @@ const bidInvitationShape = harden({
   callPipe: [['makeBidInvitation', M.any()]],
 });
 
-/**
- * Contract keywords.
- * "Currency" is scheduled to be renamed to something like Bid. (#7284)
- */
-export const KW = /** @type {const} */ {
-  Bid: 'Currency',
-  Collateral: 'Collateral',
-};
-
 /** @typedef {import('@agoric/vats/tools/board-utils.js').VBankAssetDetail } AssetDescriptor */
 /** @typedef {import('@agoric/smart-wallet/src/smartWallet').TryExitOfferAction } TryExitOfferAction */
 /** @typedef {import('@agoric/inter-protocol/src/auction/auctionBook.js').BidSpec}  BidSpec */
@@ -488,8 +479,8 @@ For example:
 For example:
 
 $ inter bid list --from my-acct
-{"id":"bid-1679677228803","price":"9 IST/IbcATOM","give":{"${KW.Bid}":"50IST"},"want":"5IbcATOM"}
-{"id":"bid-1679677312341","discount":10,"give":{"${KW.Bid}":"200IST"},"want":"1IbcATOM"}
+{"id":"bid-1679677228803","price":"9 IST/IbcATOM","give":{"Bid":"50IST"},"want":"5IbcATOM"}
+{"id":"bid-1679677312341","discount":10,"give":{"Bid":"200IST"},"want":"1IbcATOM"}
 `,
     )
     .requiredOption(
