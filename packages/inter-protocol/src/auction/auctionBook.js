@@ -39,8 +39,8 @@ const DEFAULT_DECIMALS = 9;
  *
  * The book contains orders for the collateral. It holds two kinds of
  * orders:
- *   - Prices express the bid in terms of a Bid amount
- *   - Scaled bids express the bid in terms of a discount (or markup) from the
+ *   - Prices express the bidding offer in terms of a Bid amount
+ *   - ScaledBids express the offer in terms of a discount (or markup) from the
  *     most recent oracle price.
  *
  * Offers can be added in three ways. 1) When the auction is not active, prices
@@ -61,14 +61,14 @@ const trace = makeTracer('AucBook', false);
  *   offerPrice: Ratio,
  * } | {
  *    offerBidScaling: Ratio,
- * })} BidSpec
+ * })} OfferSpec
  */
 /**
  *
  * @param {Brand<'nat'>} bidBrand
  * @param {Brand<'nat'>} collateralBrand
  */
-export const makeBidSpecShape = (bidBrand, collateralBrand) => {
+export const makeOfferSpecShape = (bidBrand, collateralBrand) => {
   const bidAmountShape = makeNatAmountShape(bidBrand);
   const collateralAmountShape = makeNatAmountShape(collateralBrand);
   return M.splitRecord(
@@ -291,29 +291,30 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
             Fail`auctionPrice must be set before each round`;
           assert(curAuctionPrice);
 
-          const bidNeeded = ceilMultiplyBy(
+          const proceedsNeeded = ceilMultiplyBy(
             initialCollateralTarget,
             curAuctionPrice,
           );
-          if (AmountMath.isEmpty(bidNeeded)) {
+          if (AmountMath.isEmpty(proceedsNeeded)) {
             seat.fail(Error('price fell to zero'));
             return makeEmpty(collateralBrand);
           }
 
-          const initialBidTarget = AmountMath.min(bidNeeded, bidAlloc);
-          const bidLimit = remainingProceedsGoal
-            ? AmountMath.min(remainingProceedsGoal, initialBidTarget)
-            : initialBidTarget;
+          const minProceedsTarget = AmountMath.min(proceedsNeeded, bidAlloc);
+          const proceedsLimit = remainingProceedsGoal
+            ? AmountMath.min(remainingProceedsGoal, minProceedsTarget)
+            : minProceedsTarget;
           const isRaiseLimited =
-            remainingProceedsGoal || !AmountMath.isGTE(bidLimit, bidNeeded);
+            remainingProceedsGoal ||
+            !AmountMath.isGTE(proceedsLimit, proceedsNeeded);
 
-          const [bidTarget, collateralTarget] = isRaiseLimited
-            ? [bidLimit, floorDivideBy(bidLimit, curAuctionPrice)]
-            : [initialBidTarget, initialCollateralTarget];
+          const [proceedsTarget, collateralTarget] = isRaiseLimited
+            ? [proceedsLimit, floorDivideBy(proceedsLimit, curAuctionPrice)]
+            : [minProceedsTarget, initialCollateralTarget];
 
           trace('settle', {
-            collateral: collateralTarget,
-            bid: bidTarget,
+            collateralTarget,
+            proceedsTarget,
             remainingProceedsGoal,
           });
 
@@ -326,14 +327,14 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
             zcf,
             harden([
               [collateralSeat, seat, { Collateral: collateralTarget }],
-              [seat, bidHoldingSeat, { Bid: bidTarget }],
+              [seat, bidHoldingSeat, { Bid: proceedsTarget }],
             ]),
           );
 
           if (remainingProceedsGoal) {
             this.state.remainingProceedsGoal = AmountMath.subtract(
               remainingProceedsGoal,
-              bidTarget,
+              proceedsTarget,
             );
           }
           return collateralTarget;
@@ -404,7 +405,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
           maxBuy,
           { trySettle, exitAfterBuy = false },
         ) {
-          trace('accept scaled bid offer');
+          trace('accept scaledBid offer');
           const { curAuctionPrice, lockedPriceForRound, scaledBidBook } =
             this.state;
           const { helper } = this.facets;
@@ -483,7 +484,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
           // allocation will be the larger of the existing ratio and the ratio
           // implied by the new deposit. Add the new collateral and raise
           // startProceedsGoal so it's proportional to the new ratio. This can
-          // result in raising more bid than one depositor wanted, but
+          // result in raising more Bid than one depositor wanted, but
           // that's better than not selling as much as the other desired.
 
           const allocation = collateralSeat.getCurrentAllocation();
@@ -570,7 +571,7 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
             }
           };
           trace(`settling`, pricedOffers.length, scaledBidOffers.length);
-          // requested price or bid scaling gives no priority beyond specifying which
+          // requested price or BidScaling gives no priority beyond specifying which
           // round the order will be serviced in.
           const prioritizedOffers = [...pricedOffers, ...scaledBidOffers].sort(
             (a, b) => compareValues(a[1].seqNum, b[1].seqNum),
@@ -634,43 +635,43 @@ export const prepareAuctionBook = (baggage, zcf, makeRecorderKit) => {
           );
         },
         /**
-         * @param {BidSpec} bidSpec
+         * @param {OfferSpec} offerSpec
          * @param {ZCFSeat} seat
          * @param {boolean} trySettle
          */
-        addOffer(bidSpec, seat, trySettle) {
+        addOffer(offerSpec, seat, trySettle) {
           const { bidBrand, collateralBrand } = this.state;
-          const BidSpecShape = makeBidSpecShape(bidBrand, collateralBrand);
+          const offerSpecShape = makeOfferSpecShape(bidBrand, collateralBrand);
 
-          mustMatch(bidSpec, BidSpecShape);
+          mustMatch(offerSpec, offerSpecShape);
           const { give } = seat.getProposal();
           const { bidAmountShape } = this.state;
           mustMatch(give.Bid, bidAmountShape, 'give must include "Bid"');
 
           const { helper } = this.facets;
-          const { exitAfterBuy } = bidSpec;
-          if ('offerPrice' in bidSpec) {
+          const { exitAfterBuy } = offerSpec;
+          if ('offerPrice' in offerSpec) {
             return helper.acceptPriceOffer(
               seat,
-              bidSpec.offerPrice,
-              bidSpec.maxBuy,
+              offerSpec.offerPrice,
+              offerSpec.maxBuy,
               {
                 trySettle,
                 exitAfterBuy,
               },
             );
-          } else if ('offerBidScaling' in bidSpec) {
+          } else if ('offerBidScaling' in offerSpec) {
             return helper.acceptScaledBidOffer(
               seat,
-              bidSpec.offerBidScaling,
-              bidSpec.maxBuy,
+              offerSpec.offerBidScaling,
+              offerSpec.maxBuy,
               {
                 trySettle,
                 exitAfterBuy,
               },
             );
           } else {
-            throw Fail`Offer was neither a price nor a scaled bid`;
+            throw Fail`Offer was neither a price nor a scaledBid`;
           }
         },
         getSeats() {

@@ -6,7 +6,7 @@
 // @ts-check
 import { CommanderError, InvalidArgumentError } from 'commander';
 // TODO: should get M from endo https://github.com/Agoric/agoric-sdk/issues/7090
-import { makeBidSpecShape } from '@agoric/inter-protocol/src/auction/auctionBook.js';
+import { makeOfferSpecShape } from '@agoric/inter-protocol/src/auction/auctionBook.js';
 import { Offers } from '@agoric/inter-protocol/src/clientSupport.js';
 import { objectMap } from '@agoric/internal';
 import { M, matches } from '@agoric/store';
@@ -35,7 +35,7 @@ const bidInvitationShape = harden({
 
 /** @typedef {import('@agoric/vats/tools/board-utils.js').VBankAssetDetail } AssetDescriptor */
 /** @typedef {import('@agoric/smart-wallet/src/smartWallet').TryExitOfferAction } TryExitOfferAction */
-/** @typedef {import('@agoric/inter-protocol/src/auction/auctionBook.js').BidSpec}  BidSpec */
+/** @typedef {import('@agoric/inter-protocol/src/auction/auctionBook.js').OfferSpec}  BidSpec */
 
 /**
  * Format amounts, prices etc. based on brand board Ids, displayInfo
@@ -101,7 +101,7 @@ const coerceBid = (offerStatus, agoricNames, warn) => {
     warn('mal-formed bid offerArgs', offerStatus.id, offerArgs);
     return null;
   }
-  const bidSpecShape = makeBidSpecShape(
+  const bidSpecShape = makeOfferSpecShape(
     // @ts-expect-error XXX AssetKind narrowing?
     agoricNames.brand.IST,
     collateralBrand,

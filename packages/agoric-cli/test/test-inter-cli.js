@@ -208,7 +208,7 @@ const makeProcess = (t, keyring, out) => {
 
 /**
  * @type {import('@agoric/smart-wallet/src/offers.js').OfferStatus &
- *         { offerArgs: import('@agoric/inter-protocol/src/auction/auctionBook.js').BidSpec}}
+ *         { offerArgs: import('@agoric/inter-protocol/src/auction/auctionBook.js').OfferSpec}}
  */
 const offerStatus2 = harden({
   id: 'bid-234234',
@@ -299,7 +299,7 @@ test.todo('want as max collateral wanted');
 
 /**
  * @type {import('@agoric/smart-wallet/src/offers.js').OfferStatus &
- *         { offerArgs: import('@agoric/inter-protocol/src/auction/auctionBook.js').BidSpec}}
+ *         { offerArgs: import('@agoric/inter-protocol/src/auction/auctionBook.js').OfferSpec}}
  */
 const offerStatus1 = harden({
   error: 'Error: "nameKey" not found: (a string)',

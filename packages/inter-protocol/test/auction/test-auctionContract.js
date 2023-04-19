@@ -1289,7 +1289,7 @@ test('bid zero', async t => {
     ),
     {
       message:
-        '"new bid" proposal: give: Bid: value: "[0n]" - Must be >= "[1n]"',
+        '"new bidding offer" proposal: give: Bid: value: "[0n]" - Must be >= "[1n]"',
     },
   );
 });

@@ -30,7 +30,7 @@ import { E } from '@endo/eventual-send';
 import { Far } from '@endo/marshal';
 
 import { makeNatAmountShape } from '../contractSupport.js';
-import { makeBidSpecShape, prepareAuctionBook } from './auctionBook.js';
+import { makeOfferSpecShape, prepareAuctionBook } from './auctionBook.js';
 import { auctioneerParamTypes } from './params.js';
 import { makeScheduler } from './scheduler.js';
 import { AuctionState } from './util.js';
@@ -42,7 +42,15 @@ const { add, multiply } = natSafeMath;
 
 const trace = makeTracer('Auction', false);
 
-const MINIMUM_BID_CURRENCY = 1n;
+/**
+ * @file
+ * In this file, 'Bid' is the name of the ERTP issuer used to purchase
+ * collateral from various issuers. It's too confusing to also use Bid as a verb
+ * or a description of amounts offered, so we've tried to find alternatives in
+ * all those cases.
+ */
+
+const MINIMUM_BID_GIVE = 1n;
 
 /**
  * @param {NatValue} rate
@@ -56,23 +64,30 @@ const makeBPRatio = (rate, bidBrand, collateralBrand = bidBrand) =>
   );
 
 /**
+ * The auction sold some amount of collateral, and raised a certain amount of
+ * Bid. The excess collateral was returned as `unsoldCollateral`. The Bid amount
+ * collected from the auction participants is `proceeds`.
  * Return a set of transfers for atomicRearrange() that distribute
- * collateralReturn and bidRaised proportionally to each seat's deposited
+ * `unsoldCollateral` and `proceeds` proportionally to each seat's deposited
  * amount. Any uneven split should be allocated to the reserve.
  *
- * @param {Amount} collateralReturn
- * @param {Amount} bidRaised
+ * @param {Amount} unsoldCollateral
+ * @param {Amount} proceeds
  * @param {{seat: ZCFSeat, amount: Amount<'nat'>, goal: Amount<'nat'>}[]} deposits
  * @param {ZCFSeat} collateralSeat
+<<<<<<< HEAD
  * @param {ZCFSeat} bidHoldingSeat
+=======
+ * @param {ZCFSeat} bidHoldingSeat seat with the Bid allocation to be distributed
+>>>>>>> b4c8b5423 (refactor: rename variables within Auction&Book to be more idiomatic)
  * @param {string} collateralKeyword The Reserve will hold multiple collaterals,
  *      so they need distinct keywords
  * @param {ZCFSeat} reserveSeat
  * @param {Brand} brand
  */
 const distributeProportionalShares = (
-  collateralReturn,
-  bidRaised,
+  unsoldCollateral,
+  proceeds,
   deposits,
   collateralSeat,
   bidHoldingSeat,
@@ -84,26 +99,26 @@ const distributeProportionalShares = (
     return AmountMath.add(prev, amount);
   }, AmountMath.makeEmpty(brand));
 
-  const collShare = makeRatioFromAmounts(collateralReturn, totalCollDeposited);
-  const currShare = makeRatioFromAmounts(bidRaised, totalCollDeposited);
+  const collShare = makeRatioFromAmounts(unsoldCollateral, totalCollDeposited);
+  const currShare = makeRatioFromAmounts(proceeds, totalCollDeposited);
   /** @type {import('@agoric/zoe/src/contractSupport/atomicTransfer.js').TransferPart[]} */
   const transfers = [];
-  let bidLeft = bidRaised;
-  let collateralLeft = collateralReturn;
+  let proceedsLeft = proceeds;
+  let collateralLeft = unsoldCollateral;
 
   // each depositor gets a share that equals their amount deposited
-  // divided by the total deposited multiplied by the bid and
+  // divided by the total deposited multiplied by the Bid and
   // collateral being distributed.
   for (const { seat, amount } of deposits.values()) {
     const currPortion = floorMultiplyBy(amount, currShare);
-    bidLeft = AmountMath.subtract(bidLeft, currPortion);
+    proceedsLeft = AmountMath.subtract(proceedsLeft, currPortion);
     const collPortion = floorMultiplyBy(amount, collShare);
     collateralLeft = AmountMath.subtract(collateralLeft, collPortion);
     transfers.push([bidHoldingSeat, seat, { Bid: currPortion }]);
     transfers.push([collateralSeat, seat, { Collateral: collPortion }]);
   }
 
-  transfers.push([bidHoldingSeat, reserveSeat, { Bid: bidLeft }]);
+  transfers.push([bidHoldingSeat, reserveSeat, { Bid: proceedsLeft }]);
 
   if (!AmountMath.isEmpty(collateralLeft)) {
     transfers.push([
@@ -118,46 +133,49 @@ const distributeProportionalShares = (
 };
 
 /**
+ * The auction sold some amount of collateral, and raised a certain amount of
+ * Bid. The excess collateral was returned as `unsoldCollateral`. The Bid amount
+ * collected from the auction participants is `proceeds`.
  * Return a set of transfers for atomicRearrange() that distribute
- * collateralReturn and bidRaised proportionally to each seat's deposited
+ * `unsoldCollateral` and `proceeds` proportionally to each seat's deposited
  * amount. Any uneven split should be allocated to the reserve.
  *
  * This function is exported for testability, and is not expected to be used
  * outside the contract below.
  *
  * Some or all of the depositors may have specified a goal amount.
- *  A if none did, return collateral and bid prorated to deposits.
- *  B if bidRaised < proceedsGoal everyone gets prorated amounts of both.
- *  C if bidRaised matches proceedsGoal, everyone gets the bid they
+ *  * A if none did, return collateral and Bid prorated to deposits.
+ *  * B if proceeds < proceedsGoal everyone gets prorated amounts of both.
+ *  * C if proceeds matches proceedsGoal, everyone gets the Bid they
  *    asked for, plus enough collateral to reach the same proportional payout.
  *    If any depositor's goal amount exceeded their share of the total,
  *    we'll fall back to the first approach.
- *  D if bidRaised > proceedsGoal && all depositors specified a limit,
+ *  * D if proceeds > proceedsGoal && all depositors specified a limit,
  *    all depositors get their goal first, then we distribute the
- *    remainder (collateral and bid) to get the same proportional payout.
- *  E if bidRaised > proceedsGoal && some depositors didn't specify a
- *    limit, depositors who did get their goal first, then we distribute
- *    the remainder (collateral and bid) to get the same proportional
+ *    remainder (collateral and Bid) to get the same proportional payout.
+ *  * E if proceeds > proceedsGoal && some depositors didn't specify a
+ *    limit, depositors who did will get their goal first, then we distribute
+ *    the remainder (collateral and Bid) to get the same proportional
  *    payout. If any depositor's goal amount exceeded their share of the
  *    total, we'll fall back as above.
  * Think of it this way: those who specified a limit want as much collateral
- * back as possible, consistent with raising a certain amount of bid. Those
+ * back as possible, consistent with raising a certain amount of Bid. Those
  * who didn't specify a limit are trying to sell collateral, and would prefer to
- * have it all converted to bid.
+ * have as much as possible converted to Bid.
  *
- * @param {Amount<'nat'>} collateralReturn
- * @param {Amount<'nat'>} bidRaised
+ * @param {Amount<'nat'>} unsoldCollateral
+ * @param {Amount<'nat'>} proceeds
  * @param {{seat: ZCFSeat, amount: Amount<'nat'>, goal: Amount<'nat'>}[]} deposits
  * @param {ZCFSeat} collateralSeat
- * @param {ZCFSeat} bidHoldingSeat
+ * @param {ZCFSeat} bidHoldingSeat seat with the Bid allocation to be distributed
  * @param {string} collateralKeyword The Reserve will hold multiple collaterals,
  *      so they need distinct keywords
  * @param {ZCFSeat} reserveSeat
  * @param {Brand} brand
  */
 export const distributeProportionalSharesWithLimits = (
-  collateralReturn,
-  bidRaised,
+  unsoldCollateral,
+  proceeds,
   deposits,
   collateralSeat,
   bidHoldingSeat,
@@ -177,15 +195,15 @@ export const distributeProportionalSharesWithLimits = (
     },
     [
       AmountMath.makeEmpty(brand),
-      AmountMath.makeEmptyFromAmount(bidRaised),
+      AmountMath.makeEmptyFromAmount(proceeds),
       AmountMath.makeEmpty(brand),
     ],
   );
 
   const distributeProportionally = () =>
     distributeProportionalShares(
-      collateralReturn,
-      bidRaised,
+      unsoldCollateral,
+      proceeds,
       deposits,
       collateralSeat,
       bidHoldingSeat,
@@ -197,7 +215,7 @@ export const distributeProportionalSharesWithLimits = (
   // cases A and B
   if (
     AmountMath.isEmpty(proceedsGoal) ||
-    !AmountMath.isGTE(bidRaised, proceedsGoal)
+    !AmountMath.isGTE(proceeds, proceedsGoal)
   ) {
     return distributeProportionally();
   }
@@ -205,10 +223,10 @@ export const distributeProportionalSharesWithLimits = (
   // Calculate multiplier for collateral that gives total value each depositor
   // should get.
   //
-  // The average price of collateral is BidRaise / CollateralSold.
-  // The value of Collateral is Price * collateralReturn.
+  // The average price of collateral is proceeds / CollateralSold.
+  // The value of Collateral is Price * unsoldCollateral.
   // The overall total value to be distributed is
-  //     BidRaise + collateralValue.
+  //     Proceeds + collateralValue.
   // Each depositor should get bid and collateral that sum to the overall
   // total value multiplied by the ratio of that depositor's collateral
   // deposited to all the collateral deposited.
@@ -216,26 +234,26 @@ export const distributeProportionalSharesWithLimits = (
   // To improve the resolution of the result, we only divide once, so we
   // multiply each depositor's collateral remaining by this expression.
   //
-  //        collSold * bidRaised  +  bidRaised * collateralReturn
+  //        collSold * proceeds  +  proceeds * unsoldCollateral
   //         -----------------------------------------------------------
   //                   collSold * totalCollDeposit
   //
   // If you do the dimension analysis, we'll multiply collateral by a ratio
-  // representing bid/collateral.
+  // representing Bid/collateral.
 
-  // average value of collateral is collateralSold / bidRaised
-  const collateralSold = AmountMath.subtract(collDeposited, collateralReturn);
+  // average value of collateral is collateralSold / proceeds
+  const collateralSold = AmountMath.subtract(collDeposited, unsoldCollateral);
   const numeratorValue = add(
-    multiply(collateralSold.value, bidRaised.value),
-    multiply(collateralReturn.value, bidRaised.value),
+    multiply(collateralSold.value, proceeds.value),
+    multiply(unsoldCollateral.value, proceeds.value),
   );
   const denominatorValue = multiply(collateralSold.value, collDeposited.value);
   const totalValueRatio = makeRatioFromAmounts(
-    AmountMath.make(bidRaised.brand, numeratorValue),
+    AmountMath.make(proceeds.brand, numeratorValue),
     AmountMath.make(brand, denominatorValue),
   );
 
-  const avgPrice = makeRatioFromAmounts(bidRaised, collateralSold);
+  const avgPrice = makeRatioFromAmounts(proceeds, collateralSold);
 
   // Allocate the proceedsGoal amount to depositors who specified it. Add
   // collateral to reach their share. Then see what's left, and allocate it
@@ -243,11 +261,11 @@ export const distributeProportionalSharesWithLimits = (
   // anything doesn't work.
   /** @type {import('@agoric/zoe/src/contractSupport/atomicTransfer.js').TransferPart[]} */
   const transfers = [];
-  let bidLeft = bidRaised;
-  let collateralLeft = collateralReturn;
+  let proceedsLeft = proceeds;
+  let collateralLeft = unsoldCollateral;
 
   // case C
-  if (AmountMath.isEqual(proceedsGoal, bidRaised)) {
+  if (AmountMath.isEqual(proceedsGoal, proceeds)) {
     // each depositor gets a share that equals their amount deposited
     // multiplied by totalValueRatio computed above.
 
@@ -256,7 +274,7 @@ export const distributeProportionalSharesWithLimits = (
       if (goal === null || AmountMath.isGTE(depositorValue, goal)) {
         let valueNeeded = depositorValue;
         if (goal !== null && !AmountMath.isEmpty(goal)) {
-          bidLeft = AmountMath.subtract(bidLeft, goal);
+          proceedsLeft = AmountMath.subtract(proceedsLeft, goal);
           transfers.push([bidHoldingSeat, seat, { Bid: goal }]);
           valueNeeded = AmountMath.subtract(depositorValue, goal);
         }
@@ -271,11 +289,11 @@ export const distributeProportionalSharesWithLimits = (
       }
     }
   } else {
-    // Cases D & E. BidRaise > proceedsGoal, so those who specified a limit
+    // Cases D & E. Proceeds > proceedsGoal, so those who specified a limit
     // receive at least their target.
 
-    const collateralValue = floorMultiplyBy(collateralReturn, avgPrice);
-    const totalDistributableValue = AmountMath.add(bidRaised, collateralValue);
+    const collateralValue = floorMultiplyBy(unsoldCollateral, avgPrice);
+    const totalDistributableValue = AmountMath.add(proceeds, collateralValue);
     // The share for those who specified a limit is proportional to their
     // collateral. ceiling because it's a lower limit on the restrictive branch
     const limitedShare = ceilMultiplyBy(
@@ -283,11 +301,11 @@ export const distributeProportionalSharesWithLimits = (
       makeRatioFromAmounts(totalDistributableValue, collDeposited),
     );
 
-    // if proceedsGoal + value of collateralReturn >= limitedShare then those
+    // if proceedsGoal + value of unsoldCollateral >= limitedShare then those
     // who specified a limit can get all the excess over their limit in
     // collateral. Others share whatever is left.
-    // If proceedsGoal + collateralReturn < limitedShare then those who
-    // specified share all the collateral, and everyone gets bid to cover
+    // If proceedsGoal + unsoldCollateral < limitedShare then those who
+    // specified share all the collateral, and everyone gets Bid to cover
     // the remainder of their share.
     const limitedGetMaxCollateral = AmountMath.isGTE(
       AmountMath.add(proceedsGoal, collateralValue),
@@ -300,7 +318,7 @@ export const distributeProportionalSharesWithLimits = (
         const ltdCollatValue = AmountMath.subtract(limitedShare, proceedsGoal);
         const ltdCollatShare = ceilDivideBy(ltdCollatValue, avgPrice);
         // the unlimited will get the remainder of the collateral
-        return AmountMath.subtract(collateralReturn, ltdCollatShare);
+        return AmountMath.subtract(unsoldCollateral, ltdCollatShare);
       } else {
         return AmountMath.makeEmpty(brand);
       }
@@ -314,7 +332,7 @@ export const distributeProportionalSharesWithLimits = (
         const collateralVal = ceilMultiplyBy(collateralAdded, avgPrice);
         const valueNeeded = AmountMath.subtract(depositorValue, collateralVal);
 
-        bidLeft = AmountMath.subtract(bidLeft, valueNeeded);
+        proceedsLeft = AmountMath.subtract(proceedsLeft, valueNeeded);
         transfers.push([bidHoldingSeat, seat, { Bid: valueNeeded }]);
       };
 
@@ -327,7 +345,7 @@ export const distributeProportionalSharesWithLimits = (
         addRemainderInBid(collateralShare);
         transfers.push([collateralSeat, seat, { Collateral: collateralShare }]);
       } else if (limitedGetMaxCollateral) {
-        bidLeft = AmountMath.subtract(bidLeft, goal);
+        proceedsLeft = AmountMath.subtract(proceedsLeft, goal);
         transfers.push([bidHoldingSeat, seat, { Bid: goal }]);
 
         const valueNeeded = AmountMath.subtract(depositorValue, goal);
@@ -337,9 +355,9 @@ export const distributeProportionalSharesWithLimits = (
       } else {
         // There's not enough collateral to completely cover the gap above
         // the proceedsGoal amount, so each depositor gets a proportional share
-        // of collateralReturn plus enough bid to reach their share.
+        // of unsoldCollateral plus enough Bid to reach their share.
         const collateralShare = floorMultiplyBy(
-          collateralReturn,
+          unsoldCollateral,
           makeRatioFromAmounts(amount, collDeposited),
         );
         collateralLeft = AmountMath.subtract(collateralLeft, collateralShare);
@@ -349,7 +367,7 @@ export const distributeProportionalSharesWithLimits = (
     }
   }
 
-  transfers.push([bidHoldingSeat, reserveSeat, { Bid: bidLeft }]);
+  transfers.push([bidHoldingSeat, reserveSeat, { Bid: proceedsLeft }]);
 
   if (!AmountMath.isEmpty(collateralLeft)) {
     transfers.push([
@@ -508,14 +526,14 @@ export const start = async (zcf, privateArgs, baggage) => {
     );
 
   const tradeEveryBook = () => {
-    const bidScalingRatio = makeRatio(
+    const offerScalingRatio = makeRatio(
       currentDiscountRateBP,
       brands.Bid,
       BASIS_POINTS,
     );
 
     for (const book of books.values()) {
-      book.settleAtNewRate(bidScalingRatio);
+      book.settleAtNewRate(offerScalingRatio);
     }
   };
 
@@ -590,10 +608,10 @@ export const start = async (zcf, privateArgs, baggage) => {
       M.splitRecord({ give: { Collateral: AmountShape } }),
     );
 
-  const bidProposalShape = M.splitRecord(
+  const biddingProposalShape = M.splitRecord(
     {
       give: {
-        Bid: makeNatAmountShape(brands.Bid, MINIMUM_BID_CURRENCY),
+        Bid: makeNatAmountShape(brands.Bid, MINIMUM_BID_GIVE),
       },
     },
     {
@@ -609,24 +627,24 @@ export const start = async (zcf, privateArgs, baggage) => {
         mustMatch(collateralBrand, BrandShape);
         books.has(collateralBrand) ||
           Fail`No book for brand ${collateralBrand}`;
-        const bidSpecShape = makeBidSpecShape(brands.Bid, collateralBrand);
+        const offerSpecShape = makeOfferSpecShape(brands.Bid, collateralBrand);
         /**
          * @param {ZCFSeat} zcfSeat
-         * @param {import('./auctionBook.js').BidSpec} bidSpec
+         * @param {import('./auctionBook.js').OfferSpec} offerSpec
          */
-        const newBidHandler = (zcfSeat, bidSpec) => {
+        const newBidHandler = (zcfSeat, offerSpec) => {
           // xxx consider having Zoe guard the offerArgs with a provided shape
-          mustMatch(bidSpec, bidSpecShape);
+          mustMatch(offerSpec, offerSpecShape);
           const auctionBook = books.get(collateralBrand);
-          auctionBook.addOffer(bidSpec, zcfSeat, isActive());
+          auctionBook.addOffer(offerSpec, zcfSeat, isActive());
           return 'Your bid has been accepted';
         };
 
         return zcf.makeInvitation(
           newBidHandler,
-          'new bid',
+          'new bidding offer',
           {},
-          bidProposalShape,
+          biddingProposalShape,
         );
       },
       getSchedules() {

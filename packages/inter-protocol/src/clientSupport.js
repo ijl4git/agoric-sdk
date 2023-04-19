@@ -245,7 +245,7 @@ const makeBidOffer = (_brands, opts) => {
     'price' in opts || 'discount' in opts,
     'must specify price or discount',
   );
-  /** @type {import('./auction/auctionBook.js').BidSpec} */
+  /** @type {import('./auction/auctionBook.js').OfferSpec} */
   const offerArgs =
     'price' in opts
       ? {
