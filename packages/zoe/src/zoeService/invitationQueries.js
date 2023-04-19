@@ -8,6 +8,7 @@ export const makeInvitationQueryFns = invitationIssuer => {
       const err = assert.error(
         X`A Zoe invitation is required, not ${invitationP}`,
       );
+      console.log(`DEBUG setting a note (${reason}) but it doesn't log`);
       assert.note(err, X`Due to ${reason}`);
       throw err;
     };

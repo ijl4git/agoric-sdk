@@ -166,7 +166,9 @@ export const prepareVaultDirector = (
     const oldInvitation = baggage.has(shortfallInvitationKey)
       ? baggage.get(shortfallInvitationKey)
       : undefined;
-    const newInvitation = await directorParamManager.getInternalParamValue(
+    // DEBUG intentionally break so that this test errors:
+    // yarn test test/vaultFactory/test-vaultLiquidation.js -m "liquidate two loans"
+    const newInvitation = directorParamManager.getInternalParamValue(
       SHORTFALL_INVITATION_KEY,
     );
 
