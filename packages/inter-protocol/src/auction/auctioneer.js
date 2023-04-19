@@ -75,11 +75,7 @@ const makeBPRatio = (rate, bidBrand, collateralBrand = bidBrand) =>
  * @param {Amount} proceeds
  * @param {{seat: ZCFSeat, amount: Amount<'nat'>, goal: Amount<'nat'>}[]} deposits
  * @param {ZCFSeat} collateralSeat
-<<<<<<< HEAD
- * @param {ZCFSeat} bidHoldingSeat
-=======
  * @param {ZCFSeat} bidHoldingSeat seat with the Bid allocation to be distributed
->>>>>>> b4c8b5423 (refactor: rename variables within Auction&Book to be more idiomatic)
  * @param {string} collateralKeyword The Reserve will hold multiple collaterals,
  *      so they need distinct keywords
  * @param {ZCFSeat} reserveSeat
