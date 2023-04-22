@@ -300,7 +300,7 @@ export default function makeKernelKeeper(kernelStorage, kernelSlog) {
       defaultReapInterval = 1,
       relaxDurabilityRules = false,
       snapshotInitial = 2,
-      snapshotInterval = 200,
+      snapshotInterval = 100,
     } = kernelOptions;
 
     kvStore.set('vat.names', '[]');

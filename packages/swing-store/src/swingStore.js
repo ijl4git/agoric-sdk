@@ -36,7 +36,7 @@ export function makeSnapStoreIO() {
   return {
     createReadStream: fs.createReadStream,
     createWriteStream: fs.createWriteStream,
-    measureSeconds: makeMeasureSeconds(performance.now),
+    measureSeconds: makeMeasureSeconds(performance.now.bind(performance)),
     open: fs.promises.open,
     stat: fs.promises.stat,
     tmpFile,

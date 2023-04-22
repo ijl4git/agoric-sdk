@@ -218,7 +218,7 @@ export const addAssetToVault = async (
   {
     options: {
       // Default to 1000 IST to simplify testing. A production proposal will set this.
-      debtLimitValue = 1_000n * 1_000_000n,
+      debtLimitValue = 10_000n * 1_000_000n,
       interchainAssetOptions,
     },
   },

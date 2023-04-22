@@ -619,6 +619,7 @@ export function makeVatKeeper(
     deleteCListEntry,
     deleteCListEntriesForKernelSlots,
     getTranscript,
+    getTranscriptEndPosition,
     transcriptSnapshotStats,
     addToTranscript,
     vatStats,

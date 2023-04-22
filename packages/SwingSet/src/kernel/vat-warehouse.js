@@ -307,7 +307,7 @@ export function makeVatWarehouse(
    * Save a snapshot of most recently used vat,
    * depending on snapshotInterval.
    */
-  async function maybeSaveSnapshot() {
+  async function maybeSaveSnapshot(forced) {
     if (!lastVatID || !lookup(lastVatID)) {
       return false;
     }
@@ -331,7 +331,7 @@ export function makeVatWarehouse(
       reason = { snapshotInterval };
     }
     // console.log('maybeSaveSnapshot: reason:', reason);
-    if (!reason) {
+    if (!reason && !forced) {
       return false;
     }
     await vatKeeper.saveSnapshot(manager);

@@ -109,12 +109,14 @@ const perfObserver = new PerformanceObserver(items => {
 });
 perfObserver.observe({ entryTypes: ['measure'] });
 
-// NB: keep skipped in master because this is too long for CI
-// UNTIL: https://github.com/Agoric/agoric-sdk/issues/7279
-test.skip('stress vaults', async t => {
+test('stress vaults', async t => {
   const { walletFactoryDriver } = t.context;
 
-  const wd = await walletFactoryDriver.provideSmartWallet('agoric1open');
+  const wds = await Promise.all(
+    [...Array(5)].map(async (_, i) =>
+      walletFactoryDriver.provideSmartWallet(`agoric1open${i + 1}`),
+    ),
+  );
 
   /**
    * @param {number} i
@@ -126,17 +128,39 @@ test.skip('stress vaults', async t => {
     assert.typeof(n, 'number');
     assert.typeof(r, 'number');
 
+    const wd = wds[r - 1];
+
+    const vatPos = await t.context.controller.debug.getAllVatPos();
+    t.context.controller.writeSlogObject({
+      type: 'open-vault-start',
+      round: r,
+      iteration: i,
+      iterationLength: n,
+      vatPos,
+    });
+
     const offerId = `open-vault-${i}-of-${n}-round-${r}`;
     await wd.executeOfferMaker(Offers.vaults.OpenVault, {
       offerId,
       collateralBrandKey,
-      wantMinted: 0.5,
-      giveCollateral: 1.0,
+      wantMinted: 5,
+      giveCollateral: 10,
     });
 
     t.like(wd.getLatestUpdateRecord(), {
       updated: 'offerStatus',
       status: { id: offerId, numWantsSatisfied: 1 },
+    });
+
+    const endPos = await t.context.controller.debug.reapAll(vatPos);
+    await t.context.controller.run();
+
+    t.context.controller.writeSlogObject({
+      type: 'open-vault-finish',
+      round: r,
+      iteration: i,
+      iterationLength: n,
+      endPos,
     });
   };
 
@@ -148,7 +172,9 @@ test.skip('stress vaults', async t => {
     t.log(`opening ${n} vaults`);
     const range = [...Array(n)].map((_, i) => i + 1);
     performance.mark(`start-open`);
-    await Promise.all(range.map(i => openVault(i, n, r)));
+    for await (const i of range) {
+      await openVault(i, n, r);
+    }
     performance.mark(`end-open`);
     performance.measure(`open-${n}-round-${r}`, {
       start: 'start-open',
@@ -158,15 +184,64 @@ test.skip('stress vaults', async t => {
   };
 
   // clear out for a baseline
+  t.context.controller.debug.reapAll();
+  await t.context.controller.run();
   await snapshotHeap('start');
-  // 10 is enough to compare retention in heaps
-  await openN(10, 1);
-  await snapshotHeap('round1');
-  await openN(10, 2);
-  await snapshotHeap('round2');
+  for (let i = 1; i <= 5; i += 1) {
+    // 10 is enough to compare retention in heaps
+    await openN(20, i);
+    await snapshotHeap(`round${i}`);
+  }
 
   // let perfObserver get the last measurement
   await eventLoopIteration();
 
   console.table(rows);
+  /*
+# runs with Far invitationMakers
+
+defaultManagerType=local
+┌─────────┬──────────────┬────────────────────┬────────────────────┐
+│ (index) │ vaultsOpened │      duration      │    avgPerVault     │
+├─────────┼──────────────┼────────────────────┼────────────────────┤
+│    0    │      1       │ 205.27995777130127 │ 205.27995777130127 │
+│    1    │      10      │ 2573.005709171295  │ 257.3005709171295  │
+│    2    │     100      │ 28077.323541641235 │ 280.7732354164124  │
+│    3    │     1000     │ 469665.9919581413  │ 469.6659919581413  │
+└─────────┴──────────────┴────────────────────┴────────────────────┘
+
+defaultManagerType=xs-worker
+┌─────────┬──────────────┬───────────────────┬────────────────────┐
+│ (index) │ vaultsOpened │     duration      │    avgPerVault     │
+├─────────┼──────────────┼───────────────────┼────────────────────┤
+│    0    │      1       │ 612.6521253585815 │ 612.6521253585815  │
+│    1    │      10      │ 7219.540999889374 │ 721.9540999889374  │
+│    2    │     100      │ 93713.79333305359 │ 937.1379333305359  │
+│    3    │     1000     │ 2373681.821790695 │ 2373.6818217906953 │
+└─────────┴──────────────┴───────────────────┴────────────────────┘
+
+# runs with durable invitationMakers
+
+defaultManagerType=local with durable invitationMakers
+┌─────────┬──────────────┬────────────────────┬────────────────────┐
+│ (index) │ vaultsOpened │      duration      │    avgPerVault     │
+├─────────┼──────────────┼────────────────────┼────────────────────┤
+│    0    │      1       │ 218.26958300173283 │ 218.26958300173283 │
+│    1    │      10      │  2438.05716599524  │ 243.80571659952403 │
+│    2    │     100      │  28943.4425829947  │  289.434425829947  │
+│    3    │     1000     │ 499310.2537910044  │ 499.3102537910044  │
+└─────────┴──────────────┴────────────────────┴────────────────────┘
+
+defaultManagerType=xs-worker
+┌─────────┬──────────────┬────────────────────┬────────────────────┐
+│ (index) │ vaultsOpened │      duration      │    avgPerVault     │
+├─────────┼──────────────┼────────────────────┼────────────────────┤
+│    0    │      1       │ 685.1244170069695  │ 685.1244170069695  │
+│    1    │      10      │  7544.30787499249  │ 754.4307874992489  │
+│    2    │     100      │ 98065.45445799828  │ 980.6545445799827  │
+│    3    │     1000     │ 2297403.3330419958 │ 2297.4033330419957 │
+└─────────┴──────────────┴────────────────────┴────────────────────┘
+
+
+*/
 });
