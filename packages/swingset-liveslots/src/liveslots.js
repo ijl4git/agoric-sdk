@@ -356,39 +356,40 @@ function build(
   const disavowedPresences = new WeakSet();
   const disavowalError = harden(Error(`this Presence has been disavowed`));
 
+  const getFulfilledHandler = slot => {
+    lsdebug(`makeImportedPresence(${slot})`);
+    const applyMethod = (o, prop, args, returnedP) => {
+      // Support: o~.[prop](...args) remote method invocation
+      lsdebug(`makeImportedPresence handler.applyMethod (${slot})`);
+      if (disavowedPresences.has(o)) {
+        // eslint-disable-next-line no-use-before-define
+        exitVatWithFailure(disavowalError);
+        throw disavowalError;
+      }
+      // eslint-disable-next-line no-use-before-define
+      return queueMessage(slot, prop, args, returnedP);
+    };
+
+    const applyFunction = (o, args, returnedP) =>
+      applyMethod(o, undefined, args, returnedP);
+    const get = (o, prop) => {
+      lsdebug(`makeImportedPresence handler.get (${slot})`);
+      if (disavowedPresences.has(o)) {
+        // eslint-disable-next-line no-use-before-define
+        exitVatWithFailure(disavowalError);
+        throw disavowalError;
+      }
+      // FIXME: Actually use remote property lookup
+      return o[prop];
+    };
+    return { applyMethod, applyFunction, get };
+  };
+
   function makeImportedPresence(slot, iface = `Alleged: presence ${slot}`) {
     // Called by convertSlotToVal for type=object (an `o-NN` reference). We
     // build a Presence for application-level code to receive. This Presence
     // is associated with 'slot' so that all handled messages get sent to
     // that slot: pres~.foo() causes a syscall.send(target=slot, msg=foo).
-
-    lsdebug(`makeImportedPresence(${slot})`);
-    const fulfilledHandler = {
-      applyMethod(o, prop, args, returnedP) {
-        // Support: o~.[prop](...args) remote method invocation
-        lsdebug(`makeImportedPresence handler.applyMethod (${slot})`);
-        if (disavowedPresences.has(o)) {
-          // eslint-disable-next-line no-use-before-define
-          exitVatWithFailure(disavowalError);
-          throw disavowalError;
-        }
-        // eslint-disable-next-line no-use-before-define
-        return queueMessage(slot, prop, args, returnedP);
-      },
-      applyFunction(o, args, returnedP) {
-        return fulfilledHandler.applyMethod(o, undefined, args, returnedP);
-      },
-      get(o, prop) {
-        lsdebug(`makeImportedPresence handler.get (${slot})`);
-        if (disavowedPresences.has(o)) {
-          // eslint-disable-next-line no-use-before-define
-          exitVatWithFailure(disavowalError);
-          throw disavowalError;
-        }
-        // FIXME: Actually use remote property lookup
-        return o[prop];
-      },
-    };
 
     let remotePresence;
     const p = new HandledPromise((_res, _rej, resolveWithPresence) => {
@@ -396,7 +397,7 @@ function build(
       remotePresence = Remotable(
         iface,
         undefined,
-        resolveWithPresence(fulfilledHandler),
+        resolveWithPresence(getFulfilledHandler(slot)),
       );
       // remote === presence, actually
 

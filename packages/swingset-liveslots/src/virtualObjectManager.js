@@ -220,7 +220,7 @@ const makeContextProviderKit = (contextCache, getSlotForVal, facetNames) => {
 // have any extra objects for userspace to work with.
 
 const makeRepresentative = (proto, baseRef) => {
-  const self = { __proto__: proto };
+  const self = Object.create(proto);
   if (LABEL_INSTANCES) {
     // This exposes the vref to userspace, which is a confidentiality hazard
     // as noted in the CONFIDENTIALITY HAZARD NOTE above.
@@ -706,6 +706,13 @@ export const makeVirtualObjectManager = (
       thisfulMethods = false,
       interfaceGuard = undefined,
     } = options;
+
+    console.warn(
+      'defineKindInternal',
+      `kindID="${kindID}"`,
+      `tag="${tag}"`,
+      behavior,
+    );
 
     const statePrototype = {}; // Not frozen yet
     const stateToBaseRefMap = new WeakMap();

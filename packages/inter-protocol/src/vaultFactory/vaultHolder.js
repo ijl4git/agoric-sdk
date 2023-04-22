@@ -102,7 +102,9 @@ export const prepareVaultHolder = (baggage, makeRecorderKit) => {
             vault: {
               description: PUBLIC_TOPICS.vault[0],
               subscriber: topicKit.subscriber,
-              storagePath: topicKit.recorder.getStoragePath(),
+              storagePath: /** @type {ERef<string>} */ (
+                topicKit.recorder.getStoragePath()
+              ),
             },
           });
         },
