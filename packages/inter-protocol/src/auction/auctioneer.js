@@ -40,7 +40,7 @@ import { AuctionState } from './util.js';
 const { Fail, quote: q } = assert;
 const { add, multiply } = natSafeMath;
 
-const trace = makeTracer('Auction', false);
+const trace = makeTracer('Auctioneer');
 
 /**
  * @file
@@ -521,6 +521,14 @@ export const start = async (zcf, privateArgs, baggage) => {
       privateArgs.storageNode,
       privateArgs.marshaller,
     );
+  trace(
+    'start params',
+    Object.fromEntries(
+      Object.keys(params)
+        .filter(n => n !== 'getElectorate')
+        .map(getter => [getter, params[getter]()]),
+    ),
+  );
 
   const tradeEveryBook = () => {
     const offerScalingRatio = makeRatio(
