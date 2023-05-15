@@ -31,7 +31,7 @@ import {
 
 /** @typedef {import('../../src/vaultFactory/vaultFactory').VaultFactoryContract} VFC */
 
-const trace = makeTracer('VFDriver', false);
+const trace = makeTracer('VFDriver');
 
 export const AT_NEXT = Symbol('AT_NEXT');
 
@@ -530,12 +530,14 @@ export const makeAuctioneerDriver = async t => {
   return {
     auctioneerKit,
     advanceTimerByStartFrequency: async () => {
+      trace('advanceTimerByStartFrequency');
       // TODO source from context or config
       const startFrequency = 3600n;
       await t.context.timer.tickN(Number(startFrequency));
       await eventLoopIteration();
     },
     assertSchedulesLike: async (liveAuctionPartial, nextAuctionPartial) => {
+      await eventLoopIteration();
       const { liveAuctionSchedule, nextAuctionSchedule } = await E(
         auctioneerKit.publicFacet,
       ).getSchedules();
@@ -563,7 +565,7 @@ export const makeAuctioneerDriver = async t => {
      * @param {*} newValue
      */
     setGovernedParam: async (name, newValue) => {
-      trace(t, 'setGovernedParam', name);
+      trace('setGovernedParam', name);
       const auctioneerGov = NonNullish(t.context.puppetGovernors.auctioneer);
       await E(auctioneerGov).changeParams(
         harden({

@@ -32,7 +32,6 @@ test.before(async t => {
 test('reset auction params', async t => {
   const md = await makeManagerDriver(t);
   await md.setGovernedParam('ChargingPeriod', 10_000n);
-
   const ad = await makeAuctioneerDriver(t);
 
   const coerceRel = n =>
@@ -61,11 +60,14 @@ test('reset auction params', async t => {
   await ad.assertSchedulesLike(null, null);
 
   // restore valid params
+  debugger;
+  console.log('DEBUG settting bad StartFrequency again');
   await ad.setGovernedParam('StartFrequency', coerceRel(3600));
+  console.log('DEBUG set bad StartFrequency complete');
 
   // try triggering another liquidation
-  await ad.advanceTimerByStartFrequency();
-  t.log('"considering liquidation" fired a second time'); // XXX verified by looking at console output
+  // await ad.advanceTimerByStartFrequency();
+  // t.log('"considering liquidation" fired a second time'); // XXX verified by looking at console output
 
   await ad.assertSchedulesLike(
     { startTime: { absValue: schedule2.startTime.absValue + freq } },
