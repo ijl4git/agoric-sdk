@@ -45,7 +45,7 @@ test('schedule start to finish', async t => {
   defaultParams = {
     ...defaultParams,
     AuctionStartDelay: 1n,
-    StartFreq: 10n,
+    StartFrequency: 10n,
     PriceLockPeriod: 5n,
   };
   /** @type {import('../../src/auction/params.js').AuctionParams} */
@@ -317,7 +317,7 @@ test('zero time for auction', async t => {
   let defaultParams = makeDefaultParams(fakeInvitationPayment, timerBrand);
   defaultParams = {
     ...defaultParams,
-    StartFreq: 2n,
+    StartFrequency: 2n,
     ClockStep: 3n,
     AuctionStartDelay: 1n,
     PriceLockPeriod: 1n,
@@ -471,7 +471,7 @@ test('start Freq 0', async t => {
   let defaultParams = makeDefaultParams(fakeInvitationPayment, timerBrand);
   defaultParams = {
     ...defaultParams,
-    StartFreq: 0n,
+    StartFrequency: 0n,
   };
   /** @type {import('../../src/auction/params.js').AuctionParams} */
   // @ts-expect-error ignore missing values for test
@@ -521,7 +521,7 @@ test('delay > freq', async t => {
   defaultParams = {
     ...defaultParams,
     AuctionStartDelay: 40n,
-    StartFreq: 20n,
+    StartFrequency: 20n,
   };
   /** @type {import('../../src/auction/params.js').AuctionParams} */
   // @ts-expect-error ignore missing values for test
@@ -571,7 +571,7 @@ test('lockPeriod > freq', async t => {
   defaultParams = {
     ...defaultParams,
     PriceLockPeriod: 7200n,
-    StartFreq: 3600n,
+    StartFrequency: 3600n,
     AuctionStartDelay: 500n,
   };
   /** @type {import('../../src/auction/params.js').AuctionParams} */
@@ -627,7 +627,7 @@ test('duration = freq', async t => {
   defaultParams = {
     ...defaultParams,
     PriceLockPeriod: 20n,
-    StartFreq: 360n,
+    StartFrequency: 360n,
     AuctionStartDelay: 5n,
     ClockStep: 60n,
     StartingRate: 100n,
@@ -715,7 +715,7 @@ test('change Schedule', async t => {
   defaultParams = {
     ...defaultParams,
     PriceLockPeriod: lockPeriod,
-    StartFreq: startFreq,
+    StartFrequency: startFreq,
     AuctionStartDelay: startDelay,
     ClockStep: clockStep,
     StartingRate: 100n,
@@ -850,7 +850,7 @@ test('schedule anomalies', async t => {
   const duration = 480n + delay;
   defaultParams = {
     ...defaultParams,
-    StartFreq: oneCycle,
+    StartFrequency: oneCycle,
     ClockStep: step,
     AuctionStartDelay: delay,
     PriceLockPeriod: lock,
