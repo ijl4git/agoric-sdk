@@ -2,7 +2,6 @@ import { test as unknownTest } from '@agoric/zoe/tools/prepare-test-env-ava.js';
 
 import { makeTracer } from '@agoric/internal';
 import { TimeMath } from '@agoric/time';
-import { eventLoopIteration } from '@agoric/notifier/tools/testSupports.js';
 import { SECONDS_PER_DAY } from '../../src/proposals/econ-behaviors.js';
 import {
   makeAuctioneerDriver,

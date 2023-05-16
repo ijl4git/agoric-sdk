@@ -283,22 +283,16 @@ test('lowest >= starting', async t => {
   );
 
   const { subscriber } = makePublishKit();
-  await t.throwsAsync(
-    () =>
-      makeScheduler(
-        fakeAuctioneer,
-        timer,
-        paramManager,
-        timer.getTimerBrand(),
-        recorderKit.recorder,
-        // @ts-expect-error Oops. wrong kind of subscriber.
-        subscriber,
-      ),
-    {
-      message:
-        /startingRate \\"\[105n]\\" must be more than lowest: \\"\[110n]\\"/,
-    },
+  const scheduler = await makeScheduler(
+    fakeAuctioneer,
+    timer,
+    paramManager,
+    timer.getTimerBrand(),
+    recorderKit.recorder,
+    // @ts-expect-error Oops. wrong kind of subscriber.
+    subscriber,
   );
+  t.is(scheduler.getSchedule().nextAuctionSchedule, null);
 });
 
 test('zero time for auction', async t => {
@@ -338,22 +332,16 @@ test('zero time for auction', async t => {
   );
 
   const { subscriber } = makePublishKit();
-  await t.throwsAsync(
-    () =>
-      makeScheduler(
-        fakeAuctioneer,
-        timer,
-        paramManager,
-        timer.getTimerBrand(),
-        recorderKit.recorder,
-        // @ts-expect-error Oops. wrong kind of subscriber.
-        subscriber,
-      ),
-    {
-      message:
-        /clockStep \\"\[3n]\\" must be shorter than startFrequency \\"\[2n]\\" to allow at least one step down/,
-    },
+  const scheduler = await makeScheduler(
+    fakeAuctioneer,
+    timer,
+    paramManager,
+    timer.getTimerBrand(),
+    recorderKit.recorder,
+    // @ts-expect-error Oops. wrong kind of subscriber.
+    subscriber,
   );
+  t.is(scheduler.getSchedule().nextAuctionSchedule, null);
 });
 
 test('discountStep 0', async t => {
@@ -390,19 +378,16 @@ test('discountStep 0', async t => {
   );
 
   const { subscriber } = makePublishKit();
-  await t.throwsAsync(
-    () =>
-      makeScheduler(
-        fakeAuctioneer,
-        timer,
-        paramManager,
-        timer.getTimerBrand(),
-        recorderKit.recorder,
-        // @ts-expect-error Oops. wrong kind of subscriber.
-        subscriber,
-      ),
-    { message: /Division by zero/ },
+  const scheduler = await makeScheduler(
+    fakeAuctioneer,
+    timer,
+    paramManager,
+    timer.getTimerBrand(),
+    recorderKit.recorder,
+    // @ts-expect-error Oops. wrong kind of subscriber.
+    subscriber,
   );
+  t.is(scheduler.getSchedule().nextAuctionSchedule, null);
 });
 
 test('discountStep larger than starting rate', async t => {
@@ -440,19 +425,16 @@ test('discountStep larger than starting rate', async t => {
   );
 
   const { subscriber } = makePublishKit();
-  await t.throwsAsync(
-    () =>
-      makeScheduler(
-        fakeAuctioneer,
-        timer,
-        paramManager,
-        timer.getTimerBrand(),
-        recorderKit.recorder,
-        // @ts-expect-error Oops. wrong kind of subscriber.
-        subscriber,
-      ),
-    { message: /discountStep .* too large for requested rates/ },
+  const scheduler = await makeScheduler(
+    fakeAuctioneer,
+    timer,
+    paramManager,
+    timer.getTimerBrand(),
+    recorderKit.recorder,
+    // @ts-expect-error Oops. wrong kind of subscriber.
+    subscriber,
   );
+  t.is(scheduler.getSchedule().nextAuctionSchedule, null);
 });
 
 test('start Freq 0', async t => {
@@ -489,19 +471,16 @@ test('start Freq 0', async t => {
   );
 
   const { subscriber } = makePublishKit();
-  await t.throwsAsync(
-    () =>
-      makeScheduler(
-        fakeAuctioneer,
-        timer,
-        paramManager,
-        timer.getTimerBrand(),
-        recorderKit.recorder,
-        // @ts-expect-error Oops. wrong kind of subscriber.
-        subscriber,
-      ),
-    { message: /startFrequency must exceed startDelay.*0n.*10n.*/ },
+  const scheduler = await makeScheduler(
+    fakeAuctioneer,
+    timer,
+    paramManager,
+    timer.getTimerBrand(),
+    recorderKit.recorder,
+    // @ts-expect-error Oops. wrong kind of subscriber.
+    subscriber,
   );
+  t.is(scheduler.getSchedule().nextAuctionSchedule, null);
 });
 
 test('delay > freq', async t => {
@@ -539,19 +518,16 @@ test('delay > freq', async t => {
   );
 
   const { subscriber } = makePublishKit();
-  await t.throwsAsync(
-    () =>
-      makeScheduler(
-        fakeAuctioneer,
-        timer,
-        paramManager,
-        timer.getTimerBrand(),
-        recorderKit.recorder,
-        // @ts-expect-error Oops. wrong kind of subscriber.
-        subscriber,
-      ),
-    { message: /startFrequency must exceed startDelay.*\[20n\].*\[40n\].*/ },
+  const scheduler = await makeScheduler(
+    fakeAuctioneer,
+    timer,
+    paramManager,
+    timer.getTimerBrand(),
+    recorderKit.recorder,
+    // @ts-expect-error Oops. wrong kind of subscriber.
+    subscriber,
   );
+  t.is(scheduler.getSchedule().nextAuctionSchedule, null);
 });
 
 test('lockPeriod > freq', async t => {
@@ -590,21 +566,16 @@ test('lockPeriod > freq', async t => {
   );
 
   const { subscriber } = makePublishKit();
-  await t.throwsAsync(
-    () =>
-      makeScheduler(
-        fakeAuctioneer,
-        timer,
-        paramManager,
-        timer.getTimerBrand(),
-        recorderKit.recorder,
-        // @ts-expect-error Oops. wrong kind of subscriber.
-        subscriber,
-      ),
-    {
-      message: /startFrequency must exceed lock period.*\[3600n\].*\[7200n\].*/,
-    },
+  const scheduler = await makeScheduler(
+    fakeAuctioneer,
+    timer,
+    paramManager,
+    timer.getTimerBrand(),
+    recorderKit.recorder,
+    // @ts-expect-error Oops. wrong kind of subscriber.
+    subscriber,
   );
+  t.is(scheduler.getSchedule().nextAuctionSchedule, null);
 });
 
 // if duration = frequency, we'll cut the duration short to fit.
@@ -1080,15 +1051,9 @@ test('schedule anomalies', async t => {
   const veryLateStart = baseTime + 5n * oneCycle;
   await timer.advanceTo(veryLateStart);
 
-  // This schedule is published as a side effect of closing out the incomplete
-  // auction. The next one follows immediately and is correct.
-  await scheduleTracker.assertChange({
-    activeStartTime: null,
-    nextDescendingStepTime: { absValue: 1700017230n },
-  });
   const veryLateActual = veryLateStart + oneCycle + delay;
   await scheduleTracker.assertChange({
-    activeStartTime: timestamp(veryLateActual),
+    activeStartTime: { absValue: veryLateActual },
     nextDescendingStepTime: { absValue: veryLateActual },
     nextStartTime: { absValue: veryLateActual + oneCycle },
   });
