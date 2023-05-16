@@ -134,7 +134,7 @@ export const makeScheduler = async (
   /**
    * @param {Schedule | null} schedule
    */
-  const clockTick = schedule => {
+  const clockTick = async schedule => {
     trace('clockTick', schedule?.startTime, now);
     if (!schedule) {
       return;
@@ -192,11 +192,11 @@ export const makeScheduler = async (
         break;
       case 'endExactly':
         if (advanceRound()) {
-          finishAuctionRound();
+          await finishAuctionRound();
         }
         break;
       case 'after':
-        finishAuctionRound();
+        await finishAuctionRound();
         break;
       default:
         Fail`invalid case`;
@@ -226,7 +226,7 @@ export const makeScheduler = async (
         wake(time) {
           setTimeMonotonically(time);
           trace('wake step', now);
-          clockTick(liveSchedule);
+          void clockTick(liveSchedule);
         },
       }),
       stepCancelToken,

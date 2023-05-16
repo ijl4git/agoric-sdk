@@ -115,6 +115,7 @@ export const buildManualTimer = (options = {}) => {
   };
 
   const advanceBy = (rel, msg) => {
+    // ??? is state.now what rel should be added to?
     return advanceTo(TimeMath.addAbsRel(state.now, rel), msg);
   };
 

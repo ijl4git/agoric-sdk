@@ -533,7 +533,8 @@ export const makeAuctioneerDriver = async t => {
       trace('advanceTimerByStartFrequency');
       // TODO source from context or config
       const startFrequency = 3600n;
-      await t.context.timer.tickN(Number(startFrequency));
+      // @ts-expect-error ManualTimer debt https://github.com/Agoric/agoric-sdk/issues/7747
+      await t.context.timer.advanceBy(BigInt(startFrequency));
       await eventLoopIteration();
     },
     assertSchedulesLike: async (liveAuctionPartial, nextAuctionPartial) => {

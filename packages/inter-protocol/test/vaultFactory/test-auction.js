@@ -55,7 +55,13 @@ test('reset auction params', async t => {
   // break params
   await ad.setGovernedParam('StartFrequency', coerceRel(0));
 
+  debugger;
+  // skip twice
+  console.log('DEBUG advance 1 after breaking params');
   await ad.advanceTimerByStartFrequency();
+  console.log('DEBUG advance 2 after breaking params');
+  await ad.advanceTimerByStartFrequency();
+  console.log('DEBUG advanced twice');
   t.log('"schedules killed');
   await ad.assertSchedulesLike(null, null);
 
