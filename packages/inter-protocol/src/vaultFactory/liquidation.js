@@ -5,13 +5,14 @@ import { AmountMath } from '@agoric/ertp';
 import { makeTracer } from '@agoric/internal';
 import { TimeMath } from '@agoric/time';
 import { atomicRearrange } from '@agoric/zoe/src/contractSupport/index.js';
-import { makeScalarMapStore } from '@agoric/store';
+import { keyEQ, makeScalarMapStore } from '@agoric/store';
 import { observeIteration, subscribeEach } from '@agoric/notifier';
 
+import { Fail } from '@agoric/assert';
 import { AUCTION_START_DELAY, PRICE_LOCK_PERIOD } from '../auction/params.js';
 import { makeCancelTokenMaker } from '../auction/util.js';
 
-const trace = makeTracer('LIQ', false);
+const trace = makeTracer('LIQ');
 
 /** @typedef {import('@agoric/time/src/types').TimerService} TimerService */
 /** @typedef {import('@agoric/time/src/types').TimerWaker} TimerWaker */
@@ -28,6 +29,9 @@ const makeCancelToken = makeCancelTokenMaker('liq');
  */
 let cancelToken = makeCancelToken();
 
+let lastWakeups;
+
+let lastCurrentTime;
 /**
  * @param {ERef<import('../auction/auctioneer.js').AuctioneerPublicFacet>} auctioneerPublicFacet
  * @param {ERef<TimerService>} timer
@@ -47,6 +51,12 @@ const scheduleLiquidationWakeups = async (
     E(auctioneerPublicFacet).getGovernedParams(),
     E(timer).getCurrentTimestamp(),
   ]);
+  if (lastCurrentTime) {
+    if (TimeMath.compareAbs(now, lastCurrentTime) === 0) {
+      Fail`time must advance`;
+    }
+  }
+  lastCurrentTime = now;
 
   // make one observer that will usually ignore the update.
   observeIteration(
@@ -55,7 +65,13 @@ const scheduleLiquidationWakeups = async (
       async updateState(_newState) {
         if (!cancelToken) {
           cancelToken = makeCancelToken();
-          void E(timer).setWakeup(now, reschedulerWaker, cancelToken);
+          console.log('DEBUG rescheduled reschedulerWaker with a cancelToken');
+          void E(timer).setWakeup(
+            // bump one tick to prevent an infinite loop
+            TimeMath.addAbsRel(now, 1n),
+            reschedulerWaker,
+            cancelToken,
+          );
         }
       },
     }),
@@ -65,10 +81,11 @@ const scheduleLiquidationWakeups = async (
     if (cancelToken) {
       E(timer).cancel(cancelToken);
     }
+    trace('waitForNewAuctionParams clearing cancelToken');
     cancelToken = undefined;
   };
 
-  trace('SCHEDULE', schedules.nextAuctionSchedule);
+  trace('SCHEDULE nextAuctionSchedule', schedules.nextAuctionSchedule);
   if (!schedules.nextAuctionSchedule?.startTime) {
     // The schedule says there's no next auction.
     waitForNewAuctionParams();
@@ -114,9 +131,18 @@ const scheduleLiquidationWakeups = async (
   );
   const a = t => TimeMath.absValue(t);
   trace('scheduling ', a(priceLockWakeTime), a(nominalStart), a(startTime));
+  const newWakeups = /** @type {const} */ ([
+    priceLockWakeTime,
+    nominalStart,
+    startTime,
+  ]);
+  if (keyEQ(lastWakeups, harden(newWakeups))) {
+    Fail`repeated wakeup times`;
+  }
   void E(timer).setWakeup(priceLockWakeTime, priceLockWaker, cancelToken);
   void E(timer).setWakeup(nominalStart, liquidationWaker, cancelToken);
   void E(timer).setWakeup(afterStart, reschedulerWaker, cancelToken);
+  lastWakeups = newWakeups;
 };
 
 /**

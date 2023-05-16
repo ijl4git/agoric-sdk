@@ -2,6 +2,7 @@ import { test as unknownTest } from '@agoric/zoe/tools/prepare-test-env-ava.js';
 
 import { makeTracer } from '@agoric/internal';
 import { TimeMath } from '@agoric/time';
+import { eventLoopIteration } from '@agoric/notifier/tools/testSupports.js';
 import { SECONDS_PER_DAY } from '../../src/proposals/econ-behaviors.js';
 import {
   makeAuctioneerDriver,
@@ -46,7 +47,6 @@ test('reset auction params', async t => {
 
   await ad.assertSchedulesLike(null, schedule1);
   await ad.advanceTimerByStartFrequency();
-  t.log('"considering liquidation" fired'); // XXX verified by looking at console output
   const schedule2 = {
     startTime: { absValue: schedule1.startTime.absValue + freq },
   };
@@ -55,28 +55,30 @@ test('reset auction params', async t => {
   // break params
   await ad.setGovernedParam('StartFrequency', coerceRel(0));
 
-  debugger;
-  // skip twice
-  console.log('DEBUG advance 1 after breaking params');
   await ad.advanceTimerByStartFrequency();
-  console.log('DEBUG advance 2 after breaking params');
-  await ad.advanceTimerByStartFrequency();
-  console.log('DEBUG advanced twice');
   t.log('"schedules killed');
+  // liveSchedule isn't affected (yet), but nextSchedule is cleared
+  await ad.assertSchedulesLike(schedule2, null);
+  // show live schedule clear eventually
+  await ad.advanceTimerByStartFrequency();
   await ad.assertSchedulesLike(null, null);
 
   // restore valid params
-  debugger;
-  console.log('DEBUG settting bad StartFrequency again');
   await ad.setGovernedParam('StartFrequency', coerceRel(3600));
-  console.log('DEBUG set bad StartFrequency complete');
 
   // try triggering another liquidation
-  // await ad.advanceTimerByStartFrequency();
-  // t.log('"considering liquidation" fired a second time'); // XXX verified by looking at console output
+  await ad.advanceTimerByStartFrequency();
 
   await ad.assertSchedulesLike(
-    { startTime: { absValue: schedule2.startTime.absValue + freq } },
     { startTime: { absValue: schedule2.startTime.absValue + 2n * freq } },
+    { startTime: { absValue: schedule2.startTime.absValue + 3n * freq } },
+  );
+
+  // keep going for good measure
+  await ad.advanceTimerByStartFrequency();
+  await ad.advanceTimerByStartFrequency();
+  await ad.assertSchedulesLike(
+    { startTime: { absValue: schedule2.startTime.absValue + 4n * freq } },
+    { startTime: { absValue: schedule2.startTime.absValue + 5n * freq } },
   );
 });
