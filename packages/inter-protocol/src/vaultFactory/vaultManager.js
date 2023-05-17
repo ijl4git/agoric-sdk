@@ -661,6 +661,8 @@ export const prepareVaultManagerKit = (
               quoteAsRatio(oraclePriceAtStart.quoteAmount.value[0]),
             ),
           );
+          const getVaultPenalty = debtAmount =>
+            ceilMultiplyBy(debtAmount, penaltyRate);
 
           const debtPortion = makeRatioFromAmounts(totalPenalty, totalDebt);
           // Liquidation.md describes how to process liquidation proceeds
@@ -696,8 +698,12 @@ export const prepareVaultManagerKit = (
               );
               const vaultDebt = floorMultiplyBy(debtAmount, debtPortion);
               const collatPostDebt = AmountMath.subtract(vCollat, vaultDebt);
+              const collatPostPenalty = AmountMath.subtract(
+                collatPostDebt,
+                ceilMultiplyBy(getVaultPenalty(debtAmount), debtPortion),
+              );
               if (!AmountMath.isEmpty(leftToStage)) {
-                const collat = AmountMath.min(leftToStage, collatPostDebt);
+                const collat = AmountMath.min(leftToStage, collatPostPenalty);
                 leftToStage = AmountMath.subtract(leftToStage, collat);
                 transfers.push([
                   liqSeat,
@@ -832,8 +838,15 @@ export const prepareVaultManagerKit = (
             /** @type {Array<[Vault, { collateralAmount: Amount<'nat'>, debtAmount:  Amount<'nat'>}]>} */
             for (const [vault, balance] of bestToWorst) {
               const { collateralAmount: vCollat, debtAmount } = balance;
+              const collatPostPenalty = AmountMath.subtract(
+                vCollat,
+                ceilMultiplyBy(getVaultPenalty(debtAmount), debtPortion),
+              );
               const vaultDebt = floorMultiplyBy(debtAmount, debtPortion);
-              const collatPostDebt = AmountMath.subtract(vCollat, vaultDebt);
+              const collatPostDebt = AmountMath.subtract(
+                collatPostPenalty,
+                vaultDebt,
+              );
               if (
                 reconstituteVaults &&
                 AmountMath.isGTE(collatRemaining, collatPostDebt) &&
