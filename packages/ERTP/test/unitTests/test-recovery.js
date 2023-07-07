@@ -1,4 +1,5 @@
 import { test } from '@agoric/swingset-vat/tools/prepare-test-env-ava.js';
+import { GET_INTERFACE_GUARD } from '@endo/exo';
 import { getCopySetKeys, keyEQ, makeCopySet } from '@agoric/store';
 
 import { makeIssuerKit, AmountMath } from '../../src/index.js';
@@ -66,5 +67,13 @@ test('payment recovery from mint recovery set', async t => {
   t.assert(keyEQ(mindyPurse.getCurrentAmount(), precious(41n)));
   t.throws(() => bobPurse.deposit(payment2), {
     message: /was not a live payment for brand/,
+  });
+  t.throws(() => payment2.getAllegedBrand(), {
+    message:
+      '"In \\"getAllegedBrand\\" method of (precious payment)" may only be applied to a valid instance: "[Alleged: precious payment]"',
+  });
+  t.throws(() => payment2[GET_INTERFACE_GUARD](), {
+    message:
+      '"In \\"[Symbol(getInterfaceGuard)]\\" method of (precious payment)" may only be applied to a valid instance: "[Alleged: precious payment]"',
   });
 });
