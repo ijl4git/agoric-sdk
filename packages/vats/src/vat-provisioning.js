@@ -91,7 +91,9 @@ export function buildRootObject(_vatPowers, _vatParameters, baggage) {
   const makeNameHubKit = prepareNameHubKit(zone);
   const makeNamesByAddressAdmin = prepareSpecializedNameAdmin(zone);
 
-  const nameHubKit = provide(baggage, 'nameHubKit', () => makeNameHubKit());
+  const nameHubKit = provide(baggage, 'nameHubKit', () =>
+    makeNameHubKit('namesByAddress'),
+  );
   const namesByAddressAdmin = makeNamesByAddressAdmin(nameHubKit.nameAdmin);
 
   // xxx end-user ag-solo provisioning stuff (devnet only)

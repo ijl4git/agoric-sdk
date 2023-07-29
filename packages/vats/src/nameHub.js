@@ -12,8 +12,11 @@ import {
 } from '@agoric/internal/src/callback.js';
 import { makeHeapZone } from '@agoric/zone';
 import { deeplyFulfilled } from '@endo/marshal';
+import { makeTracer } from '@agoric/internal';
 
 const { Fail, quote: q } = assert;
+
+const trace = makeTracer('NHub');
 
 const KeyShape = M.string();
 const PathShape = M.arrayOf(KeyShape);
@@ -143,12 +146,12 @@ export const prepareNameHubKit = zone => {
   /** @param {{}} me */
   const my = me => provideWeak(ephemera, me, init1);
 
-  /** @type {() => import('./types').NameHubKit} */
+  /** @type {(l?: string) => import('./types').NameHubKit} */
   const makeNameHubKit = zone.exoClassKit(
     'NameHubKit',
     NameHubIKit,
-    /** @param {unknown[]} auxProperties */
-    (...auxProperties) => ({
+    /** @param {string} [debugLabel] */
+    debugLabel => ({
       /** @type {MapStore<string, unknown>} */
       keyToValue: zone.detached().mapStore('nameKey'),
 
@@ -158,7 +161,7 @@ export const prepareNameHubKit = zone => {
       /** @type {undefined | { write: (item: unknown) => void }} */
       updateCallback: undefined,
 
-      auxProperties: harden(auxProperties),
+      debugLabel,
     }),
     {
       nameHub: {
@@ -172,9 +175,10 @@ export const prepareNameHubKit = zone => {
             const { nameHub } = this.facets;
             return nameHub;
           }
-          const { keyToValue } = this.state;
+          const { keyToValue, debugLabel } = this.state;
           const { keyToPK } = my(this.facets.nameHub);
           const [first, ...remaining] = path;
+          trace('lookup', debugLabel, this.facets.nameAdmin, path);
           /** @type {any} */
           const firstValue = keyToValue.has(first)
             ? keyToValue.get(first)
@@ -213,7 +217,14 @@ export const prepareNameHubKit = zone => {
       nameAdmin: {
         async provideChild(key, reserved = []) {
           const { nameAdmin } = this.facets;
-          const { keyToAdmin, keyToValue } = this.state;
+          const { keyToAdmin, keyToValue, debugLabel } = this.state;
+          trace(
+            'provideChild',
+            debugLabel,
+            this.facets.nameAdmin,
+            key,
+            reserved,
+          );
           if (keyToAdmin.has(key)) {
             const childAdmin = keyToAdmin.get(key);
             /** @type {NameHub} */
