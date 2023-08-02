@@ -371,9 +371,9 @@ const deployWallet = async ({ agWallet, deploys, hostport }) => {
 
   // Use the same verbosity as our caller did for us.
   let verbosity;
-  if (process.env.DEBUG === undefined) {
+  if (process.env.DEBUG === undefined || process.env.DEBUG === '') {
     verbosity = [];
-  } else if (process.env.DEBUG.includes('agoric')) {
+  } else if (process.env.DEBUG.split(',').includes('agoric')) {
     verbosity = ['-vv'];
   } else {
     verbosity = ['-v'];

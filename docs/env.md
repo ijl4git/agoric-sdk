@@ -64,11 +64,15 @@ If not set, then default (`console.info` and above) logging is enabled.
 If set to an empty string, or running in `ag-chain-cosmos start` mode, don't
 print any logs.  This is part of "consensus mode."
 
-If set to a value that contains the substring `agoric`, then print all console
-messages for the entire SDK.
+Otherwise, set to a comma-separated list of strings.
 
-Otherwise, set to a comma-separated list of prefixes, where each prefix is the
-context given to `makeConsole`.  For example:
+If one of those strings is
+- `agoric`, then print all console messages for the entire `agoric-sdk``.
+- `track-turns`, then log errors at the top of the event-loop that may otherwise be unreported. See also the TRACK_TURNS environment variable below.
+- `label-instances`, then log exo instances with a unique label per instance. HAZARD This causes an information leak in the messages of thrown errors, which are available even to code without access to the console. Use with care.
+
+For each of those strings begins with a prefix recognized as indicating what
+console messages to enable, pass it to `makeConsole`. For example:
 
 - `DEBUG=SwingSet:ls` enable all console messages for liveslots, regardless of vat.
 - `DEBUG=SwingSet:ls:v13` enable for liveslots in vat 13.
@@ -96,6 +100,10 @@ Description: When nonempty, create pretend prepopulated tokens like "moola" and
 "simoleans".
 
 Lifetime: until chain is mature enough not to need any pretend tokens
+
+## LOCKDOWN_*
+
+For the envoronment variables beginning with `LOCKDOWN_` , see [`lockdown` Options](https://github.com/endojs/endo/blob/master/packages/ses/docs/lockdown.md).
 
 ## OTEL_EXPORTER_PROMETHEUS_PORT
 
@@ -238,3 +246,8 @@ records individually. `config.defaultManagerType` has a higher priority so that
 tests which require a specific worker (e.g. which exercise XS heap snapshots,
 or metering) can override the env var, so they won't break under `yarn
 test:xs`.
+
+## TRACK_TURNS
+
+Log the deep causality stack behind logged errors if possible. See also the
+`DEBUG` setting `DEBUG=track-turns` above.

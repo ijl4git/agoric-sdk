@@ -1,25 +1,25 @@
-/* global process */
+import { getEnvironmentOptionsList } from '@endo/env-options';
 import anylogger from 'anylogger';
 
 // Turn on debugging output with DEBUG=agoric
 
-const { DEBUG: debugEnv = '' } = process.env;
+const DEBUG_LIST = getEnvironmentOptionsList('DEBUG');
 let debugging;
 
 const filterOutPrefixes = [];
 // Mute vat logging unless requested, for determinism.
-if (!debugEnv.includes('SwingSet:vat')) {
+if (!DEBUG_LIST.includes('SwingSet:vat')) {
   filterOutPrefixes.push('SwingSet:vat:');
 }
 // Mute liveSlots logging unless requested, for determinism.
-if (!debugEnv.includes('SwingSet:ls')) {
+if (!DEBUG_LIST.includes('SwingSet:ls')) {
   filterOutPrefixes.push('SwingSet:ls:');
 }
 
-if (process.env.DEBUG === undefined) {
+if (DEBUG_LIST.length === 0) {
   // DEBUG wasn't set, default to info level; quieter than normal.
   debugging = 'info';
-} else if (debugEnv.includes('agoric')) {
+} else if (DEBUG_LIST.includes('agoric')) {
   // $DEBUG set and we're enabled; loudly verbose.
   debugging = 'debug';
 } else {

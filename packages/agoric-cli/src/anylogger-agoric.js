@@ -1,13 +1,15 @@
-/* global process */
+import { getEnvironmentOptionsList } from '@endo/env-options';
 import anylogger from 'anylogger';
 import chalk from 'chalk';
 
 // Turn on debugging output with DEBUG=agoric
-const { DEBUG } = process.env;
+
+const DEBUG_LIST = getEnvironmentOptionsList('DEBUG');
+
 let selectedLevel = 'info';
-if (DEBUG === undefined) {
+if (DEBUG_LIST.length === 0) {
   selectedLevel = 'log';
-} else if (DEBUG.includes('agoric')) {
+} else if (DEBUG_LIST.includes('agoric')) {
   selectedLevel = 'debug';
 }
 const defaultLevel = anylogger.levels[selectedLevel];
