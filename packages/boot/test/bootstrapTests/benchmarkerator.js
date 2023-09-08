@@ -36,7 +36,7 @@ import { makeWalletFactoryDriver } from './drivers.js';
  * benchmarks when they run.
  *
  * @typedef {{
- *    params: Record<string, string>,
+ *    options: Record<string, string>,
  *    argv: string[],
  *    actors: Record<string, import('./drivers.js').SmartWalletDriver>,
  *    label?: string,
@@ -45,10 +45,10 @@ import { makeWalletFactoryDriver } from './drivers.js';
  * }} BenchmarkContext
  *
  * BenchmarkContext:
- *  // Named parameters from the command line
- *  params: Record<string, string>,
+ *  // Named options from the command line
+ *  options: Record<string, string>,
  *
- *  // Other unparsed parameters from the command line
+ *  // Other unparsed args from the command line
  *  argv: string[],
  *
  *  // Wallet drivers for the various personae that exist in the test
@@ -114,7 +114,7 @@ let help = false;
 let dump = false;
 /** @type ManagerType */
 let defaultManagerType = 'xs-worker';
-const params = {};
+const options = {};
 const benchmarkPatts = [];
 
 const readClock = () => process.hrtime.bigint();
@@ -133,8 +133,8 @@ FLAGS may be:
   -v
   --verbose        - output verbose debugging messages it runs
 
-  -p NAME VAL
-  --param NAME VAL - set named parameter NAME to VAL
+  -o NAME VAL
+  --option NAME VAL - set named option NAME to VAL
 
   -l
   --local          - use the 'local' vat manager (instead of 'xs-worker')
@@ -187,11 +187,11 @@ while (argv[0] && argv[0].startsWith('-') && stillScanningArgs) {
     case '--help':
       help = true;
       break;
-    case '-p':
-    case '--param': {
-      const paramName = argv.shift();
-      const paramValue = argv.shift();
-      params[paramName] = paramValue;
+    case '-o':
+    case '--option': {
+      const optionName = argv.shift();
+      const optionValue = argv.shift();
+      options[optionName] = optionValue;
       break;
     }
     case '--':
@@ -203,7 +203,7 @@ while (argv[0] && argv[0].startsWith('-') && stillScanningArgs) {
   }
 }
 
-harden(params);
+harden(options);
 
 if (help) {
   usage();
@@ -478,7 +478,7 @@ export const makeBenchmarkerator = async () => {
   log('-'.repeat(70));
   const benchmarkReport = { setup: setupStats };
 
-  const context = harden({ params, argv, actors });
+  const context = harden({ options, argv, actors });
 
   /**
    * Add a benchmark to the set being run by an execution of the benchmark

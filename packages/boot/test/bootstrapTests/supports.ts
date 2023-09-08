@@ -185,7 +185,13 @@ export const getNodeTestVaultsConfig = async (
     await loadSwingsetConfigFile(fullPath),
   );
 
-  // speed up (e.g. 80s vs 133s with xs-worker in production config)
+  // Manager types:
+  //   'local':
+  //     - much faster (~3x speedup)
+  //     - much easier to use debugger
+  //     - exhibits inconsistent GC behavior from run to run
+  //   'xs-worker'
+  //     - timing results more accurately reflect production
   config.defaultManagerType = defaultManagerType;
   // speed up build (60s down to 10s in testing)
   config.bundleCachePath = bundleDir;
