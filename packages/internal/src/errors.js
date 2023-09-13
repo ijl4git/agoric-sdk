@@ -1,5 +1,7 @@
 import { quote } from '@endo/errors';
 
+export { throwRedacted as Fail } from '@endo/errors';
+
 /**
  * @template T
  * @param {T | null | undefined} val
