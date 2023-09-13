@@ -1,6 +1,7 @@
 // @ts-check
 // @jessie-check
 
+import { quote } from '@endo/errors';
 import { E } from '@endo/far';
 import { deeplyFulfilled, isObject } from '@endo/marshal';
 import { isPromise, makePromiseKit } from '@endo/promise-kit';
@@ -15,6 +16,22 @@ const { details: X, quote: q, Fail } = assert;
 export const BASIS_POINTS = 10_000n;
 
 /** @template T @typedef {import('@endo/eventual-send').ERef<T>} ERef<T> */
+
+/**
+ * @template T
+ * @param {T | null | undefined} val
+ * @param {string} [optDetails]
+ * @returns {T}
+ */
+export const NonNullish = (val, optDetails = `unexpected ${quote(val)}`) => {
+  // eslint-disable-next-line eqeqeq -- intentional double-equal
+  if (val != null) {
+    // This `!= null` idiom checks that `val` is neither `null` nor `undefined`.
+    return val;
+  }
+  assert.fail(optDetails);
+};
+harden(NonNullish);
 
 /**
  * Throws if multiple entries use the same property name. Otherwise acts
