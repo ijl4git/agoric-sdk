@@ -3,7 +3,10 @@ import { test as anyTest } from '@agoric/zoe/tools/prepare-test-env-ava.js';
 
 import { PowerFlags } from '@agoric/vats/src/walletFlags.js';
 
+import { makeAgoricNamesRemotesFromFakeStorage } from '@agoric/vats/tools/board-utils.js';
+import { Fail } from '@agoric/assert';
 import { makeSwingsetTestKit, keyArrayEqual } from './supports.js';
+import { makeWalletFactoryDriver } from './drivers.js';
 
 const { keys } = Object;
 /**
@@ -17,7 +20,27 @@ const makeDefaultTestContext = async t => {
   const swingsetTestKit = await makeSwingsetTestKit(t, 'bundles/demo-config', {
     configSpecifier: '@agoric/vm-config/decentral-demo-config.json',
   });
-  return swingsetTestKit;
+
+  const { EV } = swingsetTestKit.runUtils;
+
+  // Wait for ATOM to make it into agoricNames
+  // await EV.vat('bootstrap').consumeItem('vaultFactoryKit');
+  // console.timeLog('DefaultTestContext', 'vaultFactoryKit');
+
+  // has to be late enough for agoricNames data to have been published
+  const agoricNamesRemotes = makeAgoricNamesRemotesFromFakeStorage(
+    swingsetTestKit.storage,
+  );
+  // agoricNamesRemotes.brand.ATOM || Fail`ATOM missing from agoricNames`;
+  console.timeLog('DefaultTestContext', 'agoricNamesRemotes');
+
+  const walletFactoryDriver = await makeWalletFactoryDriver(
+    swingsetTestKit.runUtils,
+    swingsetTestKit.storage,
+    swingsetTestKit.agoricNamesRemotes,
+  );
+
+  return { ...swingsetTestKit, walletFactoryDriver };
 };
 
 test.before(async t => (t.context = await makeDefaultTestContext(t)));
@@ -37,7 +60,7 @@ const makeHomeFor = async (addr, EV) => {
   return EV(clientFacet).getChainBundle();
 };
 
-test('sim/demo config provides home with .myAddressNameAdmin', async t => {
+test.only('sim/demo config provides home with .myAddressNameAdmin', async t => {
   const devToolKeys = [
     'behaviors',
     'chainTimerService',
@@ -60,6 +83,13 @@ test('sim/demo config provides home with .myAddressNameAdmin', async t => {
   ].sort();
 
   const { EV } = t.context.runUtils;
+
+  const { walletFactoryDriver } = t.context;
+  // address of KREAd admin account
+  await walletFactoryDriver.provideSmartWallet(
+    'agoric14qjtwd0a7n8vrjgd5fgc4q0fes7dm04sz22tz0',
+  );
+
   await t.notThrowsAsync(EV.vat('bootstrap').consumeItem('provisioning'));
   t.log('bootstrap produced provisioning vat');
   const addr = 'agoric123';

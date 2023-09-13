@@ -1,4 +1,5 @@
 /* global globalThis */
+/* eslint-disable import/no-absolute-path */
 // @ts-check
 import { allValues, BridgeId as BRIDGE_ID } from '@agoric/internal';
 import * as STORAGE_PATH from '@agoric/internal/src/chain-storage-paths.js';
@@ -17,6 +18,10 @@ import { makePromiseKit } from '@endo/promise-kit';
 import { PowerFlags } from '../walletFlags.js';
 import { BASIC_BOOTSTRAP_PERMITS } from './basic-behaviors.js';
 import { agoricNamesReserved, callProperties, extractPowers } from './utils.js';
+
+import { executeProposal } from './chain-storage-proposal.mjs';
+
+export { executeProposal };
 
 const { Fail } = assert;
 const { keys } = Object;
@@ -571,6 +576,32 @@ export const SHARED_CHAIN_BOOTSTRAP_MANIFEST = {
     produce: {
       client: true,
       clientCreator: true,
+    },
+  },
+  [executeProposal.name]: {
+    // copied from KREADs' powers.json
+    consume: {
+      chainTimerService: 'timer',
+      board: true,
+      chainStorage: true,
+      zoe: true,
+      startUpgradable: true,
+      agoricNamesAdmin: true,
+      agoricNames: true,
+      namesByAddressAdmin: true,
+    },
+    produce: {
+      kreadKit: true,
+    },
+    issuer: {
+      consume: {
+        IST: true,
+      },
+    },
+    instance: {
+      produce: {
+        kread: true,
+      },
     },
   },
 };

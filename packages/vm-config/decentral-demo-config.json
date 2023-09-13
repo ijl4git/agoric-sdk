@@ -117,6 +117,9 @@
     "published.provisionPool.metrics"
   ],
   "bundles": {
+    "kread": {
+      "sourceSpec": "/opt/agoric/KREAd/agoric/contract/src/index.js"
+    },
     "agoricNames": {
       "sourceSpec": "@agoric/vats/src/vat-agoricNames.js"
     },
