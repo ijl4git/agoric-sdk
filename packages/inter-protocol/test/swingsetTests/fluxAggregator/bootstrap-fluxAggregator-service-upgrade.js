@@ -1,7 +1,7 @@
 // @ts-check
 
-import { Fail } from '@agoric/assert';
 import {
+  Fail,
   NonNullish,
   deeplyFulfilledObject,
   makeTracer,

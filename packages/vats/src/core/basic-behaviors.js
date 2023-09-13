@@ -9,13 +9,13 @@ import {
   VBankAccount,
   WalletName,
   NonNullish,
+  Fail,
 } from '@agoric/internal';
 import { keyEQ, makeScalarMapStore } from '@agoric/store';
 import { provideLazy } from '@agoric/store/src/stores/store-utils.js';
 import { E, getInterfaceOf } from '@endo/far';
 import { Nat } from '@endo/nat';
 
-import { Fail } from '@agoric/assert';
 import { makeNameHubKit } from '../nameHub.js';
 import { PowerFlags } from '../walletFlags.js';
 import { feeIssuerConfig, makeMyAddressNameAdminKit } from './utils.js';
