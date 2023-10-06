@@ -49,9 +49,7 @@ const reconnectAsNeeded = async (getter, seed = []) => {
             err,
             X`Attempting to recover from disconnection: ${disconnection}`,
           );
-        } catch (_err) {
-          // eslint-disable-next-line no-empty
-        }
+        } catch (_err) {}
       }
       throw err;
     }

@@ -2,7 +2,6 @@
 // eslint-disable-next-line import/order
 import { test } from '../../../tools/prepare-test-env-ava.js';
 
-// eslint-disable-next-line import/order
 import { assert } from '@agoric/assert';
 import { initSwingStore } from '@agoric/swing-store';
 import { parseReachableAndVatSlot } from '../../../src/kernel/state/reachable.js';

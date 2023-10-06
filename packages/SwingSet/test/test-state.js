@@ -2,7 +2,7 @@
 /* eslint-disable no-useless-concat */
 // eslint-disable-next-line import/order
 import { test } from '../tools/prepare-test-env-ava.js';
-// eslint-disable-next-line import/order
+
 import { createHash } from 'crypto';
 import { initSwingStore } from '@agoric/swing-store';
 import makeKernelKeeper from '../src/kernel/state/kernelKeeper.js';

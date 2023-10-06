@@ -11,7 +11,7 @@
     "lint": "run-s --continue-on-error lint:*",
     "lint-fix": "yarn lint:eslint --fix",
     "lint:types": "tsc",
-    "lint:eslint": "eslint ."
+    "lint:eslint": "eslint --report-unused-disable-directives --fix ."
   },
   "devDependencies": {
     "@agoric/vats": "^0.15.1",

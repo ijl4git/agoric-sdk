@@ -1,7 +1,5 @@
-// eslint-disable-next-line import/order
 import { test } from '../../tools/prepare-test-env-ava.js';
 
-// eslint-disable-next-line import/order
 import { buildVatController } from '../../src/index.js';
 import { kunser } from '../../src/lib/kmarshal.js';
 

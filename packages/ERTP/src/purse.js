@@ -83,7 +83,7 @@ export const preparePurseKind = (
         getAllegedBrand() {
           return brand;
         },
-        // eslint-disable-next-line no-use-before-define
+
         getDepositFacet() {
           return this.facets.depositFacet;
         },

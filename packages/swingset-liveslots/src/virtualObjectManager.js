@@ -1,5 +1,5 @@
 /* global globalThis */
-/* eslint-disable no-use-before-define, jsdoc/require-returns-type */
+/* eslint-disable no-use-before-define */
 
 import { assert, Fail } from '@agoric/assert';
 import { assertPattern, mustMatch } from '@agoric/store';

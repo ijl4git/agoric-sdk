@@ -1,5 +1,5 @@
 // @ts-nocheck
-/* eslint-disable import/order */
+
 import { test } from '../tools/prepare-test-env-ava.js';
 
 import buildKernel from '../src/kernel/index.js';

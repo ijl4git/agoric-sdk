@@ -1,11 +1,10 @@
 // @ts-nocheck
 /* global WeakRef, FinalizationRegistry */
-// eslint-disable-next-line import/order
+
 import anylogger from 'anylogger';
 // eslint-disable-next-line import/order
 import { test } from '../tools/prepare-test-env-ava.js';
 
-// eslint-disable-next-line import/order
 import { assert } from '@agoric/assert';
 import { initSwingStore } from '@agoric/swing-store';
 import { waitUntilQuiescent } from '@agoric/internal/src/lib-nodejs/waitUntilQuiescent.js';
