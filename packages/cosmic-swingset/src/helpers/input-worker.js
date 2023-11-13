@@ -70,8 +70,12 @@ export const makeJsonRpcService = (
   dispatch,
   bufferSize = DEFAULT_BUFFER_SIZE,
 ) => {
-  let resolveFinished;
-  const finishedP = new Promise(resolve => (resolveFinished = resolve));
+  /** @type {{ resolve: () => void, reject: (reason: any) => void}} */
+  let finishedSettler;
+  /** @type {Promise<void>} */
+  const finishedP = new Promise(
+    (resolve, reject) => (finishedSettler = harden({ resolve, reject })),
+  );
   worker.on('message', obj => {
     debug('host received', obj);
     switch (obj && obj.type) {
@@ -82,7 +86,7 @@ export const makeJsonRpcService = (
 
       case 'FINISH_LOOP': {
         debug('worker finished', obj);
-        resolveFinished();
+        finishedSettler.resolve();
         break;
       }
 
@@ -103,7 +107,7 @@ export const makeJsonRpcService = (
       worker
         .terminate()
         .catch(err => console.error('input-worker terminated with', err));
-      resolveFinished(Promise.reject(reason));
+      finishedSettler.reject(reason);
     },
     makeReplyWakeup(id) {
       xferClient.prepareToRead(buf =>
