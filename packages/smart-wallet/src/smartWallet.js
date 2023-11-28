@@ -13,7 +13,7 @@ import {
   objectMap,
   StorageNodeShape,
 } from '@agoric/internal';
-import { observeNotifier } from '@agoric/notifier';
+import { isUpgradeDisconnection } from '@agoric/internal/src/upgrade-api.js';
 import { M, mustMatch } from '@agoric/store';
 import {
   appendToStoredArray,
@@ -43,6 +43,24 @@ import { prepareOfferWatcher, watchOfferOutcomes } from './offerWatcher.js';
 const { Fail, quote: q } = assert;
 
 const trace = makeTracer('SmrtWlt');
+
+/**
+ * Like `subscribeLatest` but that one swallows the upgrade error that this module needs to detect and handle.
+ *
+ * @template T
+ * @param {ERef<LatestTopic<T>>} topic
+ */
+async function* subscribeLatestSimple(topic) {
+  let lastUpdate;
+  await null; // for jessie
+  while (true) {
+    const updateRecord =
+      // eslint-disable-next-line no-await-in-loop
+      await E(topic).getUpdateSince(lastUpdate);
+    lastUpdate = updateRecord.updateCount;
+    yield updateRecord.value;
+  }
+}
 
 /**
  * @file Smart wallet module
@@ -484,26 +502,28 @@ export const prepareSmartWallet = (baggage, shared) => {
 
           const { helper } = this.facets;
           // publish purse's balance and changes
-          void E.when(
-            E(purse).getCurrentAmount(),
-            balance => helper.updateBalance(purse, balance),
-            err =>
-              facets.helper.logWalletError(
-                'initial purse balance publish failed',
-                err,
-              ),
-          );
-          void observeNotifier(E(purse).getCurrentAmountNotifier(), {
-            updateState(balance) {
-              helper.updateBalance(purse, balance);
-            },
-            fail(reason) {
+          // This would seem to fit the observeNotifier() pattern,
+          // but purse notifiers are not (always) durable.
+          // outer loop: for each upgrade disconnection...
+          for (;;) {
+            const notifier = E(purse).getCurrentAmountNotifier();
+            try {
+              // eslint-disable-next-line no-await-in-loop
+              for await (const newBalance of subscribeLatestSimple(notifier)) {
+                helper.updateBalance(purse, newBalance);
+              }
+            } catch (err) {
+              if (isUpgradeDisconnection(err)) {
+                continue; // retry
+              }
               facets.helper.logWalletError(
                 '⚠️ failed updateState observer',
-                reason,
+                err,
               );
-            },
-          });
+              // TODO: think about API change.
+              throw err;
+            }
+          }
         },
 
         /**
