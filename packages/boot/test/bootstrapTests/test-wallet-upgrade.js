@@ -2,6 +2,7 @@
 import { test as anyTest } from '@agoric/zoe/tools/prepare-test-env-ava.js';
 import { eventLoopIteration } from '@agoric/notifier/tools/testSupports.js';
 import { makeAgoricNamesRemotesFromFakeStorage } from '@agoric/vats/tools/board-utils.js';
+import { Offers } from '@agoric/inter-protocol/src/clientSupport.js';
 import { makeWalletFactoryDriver } from '../../tools/drivers';
 import { makeSwingsetTestKit } from '../../tools/supports';
 import { sendInvitationScript, upgradeZoeScript } from './wallet-scripts.js';
@@ -52,7 +53,7 @@ const makeTestContext = async t => {
 
 test.before(async t => (t.context = await makeTestContext(t)));
 
-test('update purse balance across upgrade', async t => {
+test('update purse balance across zoe upgrade', async t => {
   const oraAddr = 'agoric1oracle-operator';
   const { walletFactoryDriver, agoricNamesRemotes } = t.context;
   t.log('provision a smartWallet for an oracle operator');
@@ -109,4 +110,77 @@ test('update purse balance across upgrade', async t => {
     findPurse(current).balance,
   );
   t.notDeepEqual(findPurse(current).balance.value, [], 'invitation set');
+});
+
+test.failing('offer lasts across zoe upgrade', async t => {
+  const bidderAddr = 'agoric1bidder';
+  const { walletFactoryDriver, agoricNamesRemotes } = t.context;
+  t.log('provision a smartWallet for a bidder');
+  const bidderWallet = await walletFactoryDriver.provideSmartWallet(bidderAddr);
+
+  console.log(
+    '======== before IST swap',
+    bidderWallet.getCurrentWalletRecord(),
+  );
+
+  await bidderWallet.sendOffer(
+    Offers.psm.swap(
+      agoricNamesRemotes,
+      agoricNamesRemotes.instance['psm-IST-USDC_axl'],
+      { offerId: `print-ist1`, wantMinted: 1_000, pair: ['IST', 'USDC_axl'] },
+    ),
+  );
+  console.log(
+    '======= IST swap done; bidding...',
+    bidderWallet.getCurrentWalletRecord(),
+  );
+
+  const offerId = 'bid1';
+  await bidderWallet.sendOfferMaker(Offers.auction.Bid, {
+    offerId,
+    give: '10 IST',
+    maxBuy: '1000000 ATOM',
+    price: 5,
+  });
+  console.log(
+    'bid placed; upgrading...',
+    bidderWallet.getCurrentWalletRecord(),
+  );
+
+  const { EV } = t.context.runUtils;
+  /** @type {ERef<import('@agoric/vats/src/types.js').BridgeHandler>} */
+  const coreEvalBridgeHandler = await EV.vat('bootstrap').consumeItem(
+    'coreEvalBridgeHandler',
+  );
+
+  const runCoreEval = async evals => {
+    const bridgeMessage = {
+      type: 'CORE_EVAL',
+      evals,
+    };
+    await EV(coreEvalBridgeHandler).fromBridge(bridgeMessage);
+  };
+
+  t.log('upgrade zoe');
+  await runCoreEval([
+    {
+      json_permits: JSON.stringify({
+        consume: { vatStore: true, vatAdminSvc: true },
+      }),
+      js_code: `(${upgradeZoeScript})()`,
+    },
+  ]);
+
+  const updateAfterUpgrade = bidderWallet.getLatestUpdateRecord();
+  t.is(updateAfterUpgrade.updated, 'offerStatus');
+  t.is(updateAfterUpgrade.status.error, undefined);
+
+  console.log('======= upgraded update', bidderWallet.getLatestUpdateRecord());
+
+  console.log(
+    '========= upgraded current',
+    bidderWallet.getCurrentWalletRecord(),
+  );
+
+  t.fail('todo');
 });
