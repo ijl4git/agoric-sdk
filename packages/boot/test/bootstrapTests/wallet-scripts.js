@@ -2,6 +2,12 @@
 
 import { E } from '@endo/far';
 
+/**
+ * @typedef {<T extends Record<string, ERef<any>>>(
+ *   obj: T,
+ * ) => Promise<{ [K in keyof T]: Awaited<T[K]> }>} AllValues
+ */
+
 export const upgradeZoeScript = () => {
   /**
    * @param {VatAdminSvc} vatAdminSvc
@@ -28,6 +34,32 @@ export const upgradeZoeScript = () => {
     await upgradeVat(vatAdminSvc, adminNode, 'zoe');
   };
   return upgradeZoe;
+};
+
+export const restartWalletFactoryScript = () => {
+  const { entries, fromEntries } = Object;
+
+  /** @type {AllValues} */
+  const allValues = async obj => {
+    const resolved = await Promise.all(
+      entries(obj).map(([k, vP]) => Promise.resolve(vP).then(v => [k, v])),
+    );
+    return harden(fromEntries(resolved));
+  };
+
+  /** @param {BootstrapPowers} powers } */
+  const restartWalletFactory = async powers => {
+    const { instancePrivateArgs, walletFactoryStartResult } = powers.consume;
+    const kit = await walletFactoryStartResult;
+    console.log(kit);
+    const { adminFacet } = kit;
+    /** @type {Parameters<import('@agoric/smart-wallet/src/walletFactory').start>[1]} */
+    // @ts-expect-error instancePrivateArgs maps to unknown
+    const privateArgs = await E(instancePrivateArgs).get(kit.instance);
+    const settledPrivateArgs = await allValues(privateArgs);
+    await E(adminFacet).restartContract(settledPrivateArgs);
+  };
+  return restartWalletFactory;
 };
 
 export const sendInvitationScript = () => {
