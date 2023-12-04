@@ -115,7 +115,7 @@ test('update purse balance across zoe upgrade', async t => {
         consume: { namesByAddressAdmin: true, zoe: true },
         instance: { consume: { reserve: true } },
       }),
-      js_code: `(${sendInvitationScript})()`,
+      js_code: `(${sendInvitationScript})()`.replace('ADDRESS', oraAddr),
     },
   ]);
 
@@ -152,7 +152,7 @@ test('update purse balance across walletFactory upgrade', async t => {
         consume: { namesByAddressAdmin: true, zoe: true },
         instance: { consume: { reserve: true } },
       }),
-      js_code: `(${sendInvitationScript})()`,
+      js_code: `(${sendInvitationScript})()`.replace('ADDRESS', oraAddr),
     },
   ]);
 

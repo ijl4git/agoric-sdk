@@ -63,7 +63,7 @@ export const restartWalletFactoryScript = () => {
 };
 
 export const sendInvitationScript = () => {
-  const addr = 'agoric1oracle-operator';
+  const addr = 'ADDRESS';
   const sendIt = async powers => {
     // namesByAddress is broken #8113
     const {
