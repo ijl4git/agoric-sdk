@@ -23,7 +23,7 @@ import { UNPUBLISHED_RESULT } from './offers.js';
 
 /**
  * @template {any} T
- * @typedef {import('@agoric/swingset-liveslots').PromiseWatcher<T, [UserSeat]>} OfferPromiseWatcher<T, [UserSeat]
+ * @typedef {import('@agoric/swingset-liveslots').PromiseWatcher<T, [UserSeat]>} OfferPromiseWatcher<T,[UserSeat]>
  */
 
 /**
