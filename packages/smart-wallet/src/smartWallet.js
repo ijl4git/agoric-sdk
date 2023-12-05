@@ -232,6 +232,16 @@ export const prepareSmartWallet = (baggage, shared) => {
     return store;
   });
 
+  const getPurseForBrand = (brand, { bank, invitationPurse, helper }) => {
+    const { agoricNames, invitationBrand, registry } = shared;
+    if (brand === invitationBrand) {
+      return invitationPurse;
+    } else if (registry.has(brand)) {
+      return E(bank).getPurse(brand);
+    }
+    return helper.getPurseIfKnownBrand(brand, agoricNames);
+  };
+
   /**
    *
    * @param {UniqueParams} unique
@@ -511,22 +521,14 @@ export const prepareSmartWallet = (baggage, shared) => {
         async receive(payment) {
           const { helper } = this.facets;
           const { paymentQueues: queues, bank, invitationPurse } = this.state;
-          const { registry, invitationBrand } = shared;
           const brand = await E(payment).getAllegedBrand();
+          const purse = await getPurseForBrand(brand, {
+            bank,
+            invitationPurse,
+            helper,
+          });
 
-          // When there is a purse deposit into it
-          if (registry.has(brand)) {
-            const purse = E(bank).getPurse(brand);
-            return E(purse).deposit(payment);
-          } else if (invitationBrand === brand) {
-            // @ts-expect-error narrow assetKind to 'set'
-            return E(invitationPurse).deposit(payment);
-          }
-
-          const purse = await helper.getPurseIfKnownBrand(
-            brand,
-            shared.agoricNames,
-          );
+          // When there is a purse, deposit into it.
           if (purse) {
             return E(purse).deposit(payment);
           }
@@ -556,7 +558,7 @@ export const prepareSmartWallet = (baggage, shared) => {
             offerToPublicSubscriberPaths,
             updateRecorderKit,
           } = this.state;
-          const { invitationBrand, zoe, invitationIssuer, registry } = shared;
+          const { invitationBrand, zoe, invitationIssuer } = shared;
 
           facets.helper.assertUniqueOfferId(String(offerSpec.id));
 
@@ -583,21 +585,12 @@ export const prepareSmartWallet = (baggage, shared) => {
                */
               purseForBrand: async brand => {
                 const { helper } = facets;
-                if (registry.has(brand)) {
-                  // @ts-expect-error virtual purse
-                  return E(bank).getPurse(brand);
-                } else if (invitationBrand === brand) {
-                  return invitationPurse;
-                }
-
-                const purse = await helper.getPurseIfKnownBrand(
-                  brand,
-                  shared.agoricNames,
-                );
-                if (purse) {
-                  return purse;
-                }
-                throw Fail`cannot find/make purse for ${brand}`;
+                const purse = await getPurseForBrand(brand, {
+                  bank,
+                  invitationPurse,
+                  helper,
+                });
+                return purse || Fail`cannot find/make purse for ${brand}`;
               },
               logger,
             },
