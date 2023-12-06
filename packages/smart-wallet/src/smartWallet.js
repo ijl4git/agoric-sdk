@@ -232,11 +232,17 @@ export const prepareSmartWallet = (baggage, shared) => {
     return store;
   });
 
+  /**
+   * @param {Brand} brand
+   * @param {Pick<State, 'bank' | 'invitationPurse'> & Pick<ReturnType<makeWalletWithResolvedStorageNodes>, 'helper'>} powers
+   * @returns {ERef<Purse | undefined>}
+   */
   const getPurseForBrand = (brand, { bank, invitationPurse, helper }) => {
     const { agoricNames, invitationBrand, registry } = shared;
     if (brand === invitationBrand) {
       return invitationPurse;
     } else if (registry.has(brand)) {
+      // @ts-expect-error a virtual purse is close enough
       return E(bank).getPurse(brand);
     }
     return helper.getPurseIfKnownBrand(brand, agoricNames);
