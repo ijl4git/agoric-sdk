@@ -15,7 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: ['18.x', '20.x']
+        # TODO add 20.x after https://github.com/Agoric/agoric-sdk/issues/8636
+        node-version: ['18.x']
     steps:
       - uses: actions/checkout@v3
         with:
