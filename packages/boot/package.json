@@ -70,8 +70,8 @@
       "ts": "module"
     },
     "files": [
-      "test/**/test-*.js",
-      "test/**/test-*.ts"
+      "test/**/*.test.js",
+      "test/**/*.test.ts"
     ],
     "nodeArguments": [
       "--loader=tsx",
