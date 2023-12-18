@@ -1202,6 +1202,19 @@ export default function buildKernel(
     return results;
   }
 
+  function getCrankVatForSlog(message) {
+    if (message.type === 'send') {
+      const { type } = parseKernelSlot(message.target);
+      if (type !== 'promise') {
+        return kernelKeeper.ownerOfKernelObject(message.target);
+      } else {
+        return '<unknown vat>';
+      }
+    } else {
+      return message.vatID;
+    }
+  }
+
   /**
    * @param {RunQueueEvent} message
    * @returns {Promise<PolicyInput>}
@@ -1216,6 +1229,7 @@ export default function buildKernel(
       crankType: 'delivery',
       crankNum: kernelKeeper.getCrankNumber(),
       message,
+      vatID: getCrankVatForSlog(message),
     });
     /** @type { PolicyInput } */
     let policyInput = ['none', {}];
@@ -1375,6 +1389,7 @@ export default function buildKernel(
       crankType: 'routing',
       crankNum: kernelKeeper.getCrankNumber(),
       message,
+      vatID: getCrankVatForSlog(message),
     });
     /** @type { PolicyInput } */
     const policyInput = ['none', {}];

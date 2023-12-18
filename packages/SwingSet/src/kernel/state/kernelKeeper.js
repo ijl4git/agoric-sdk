@@ -1517,6 +1517,7 @@ export default function makeKernelKeeper(kernelStorage, kernelSlog) {
     const acceptanceQueue = dumpQueue('acceptanceQueue');
 
     return harden({
+      crankNumber: kvStore.get('crankNumber'),
       vatTables,
       kernelTable,
       promises,

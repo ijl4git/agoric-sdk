@@ -25,6 +25,7 @@ export function main() {
     .default('out', undefined, '<STDOUT>')
     .describe('out', 'File to output to')
     .string('annotations')
+    .alias('annotations', 'annot')
     .describe('annotations', 'Annotations file')
     .boolean('summarize')
     .describe('summarize', 'Output summary report at end')
@@ -47,9 +48,22 @@ export function main() {
       'usesloggertags',
       'Display slogger events using full slogger tags',
     )
+    .boolean('nonoise')
+    .describe(
+      'nonoise',
+      `Skip displaying lines not normally useful for debugging`,
+    )
+    .boolean('novatstore')
+    .describe(
+      'novatstore',
+      'Skip displaying lines describing vatstore operations',
+    )
     .number('bigwidth')
     .default('bigwidth', 200)
-    .describe('bigwidth', 'Width above which large values display as <BIG>')
+    .describe(
+      'bigwidth',
+      'Length above which long value strings display as "<BIG>"',
+    )
     .strict()
     .usage('$0 [OPTIONS...] SLOGFILE')
     .version(false)
@@ -120,7 +134,6 @@ export function main() {
   }
 
   const summary = {};
-  let currentCrank = 0;
   let currentVat;
   let currentSyscallName;
   let importKernelStartTime = 0;
@@ -190,10 +203,11 @@ export function main() {
   }
 
   if (argv.crankbreaks) {
-    p('// crank 0');
+    p('// startup');
   }
   let line = lines.next();
   let lineNumber = 0;
+  let skipCrank = -1;
   while (line) {
     lineNumber += 1;
     let entry;
@@ -204,15 +218,30 @@ export function main() {
       throw err;
     }
     const type = entry.type;
-    if (entry.crankNum && entry.crankNum !== currentCrank) {
-      currentCrank = entry.crankNum;
+    if (type === 'crank-start') {
       currentVat = entry.vatID;
-      if (argv.crankbreaks) {
-        p('');
-        const crankLabel = crankLabels.get(`${currentCrank}`);
-        const crankTag = crankLabel ? ` --- ${crankLabel}` : '';
-        // prettier-ignore
-        p(`// crank ${currentCrank}: ${entry.vatID} ${vatLabel(entry)}${crankTag}`);
+      if (entry.crankType === 'routing' && argv.nonoise) {
+        skipCrank = entry.crankNum;
+      }
+      if (entry.crankNum !== skipCrank) {
+        if (argv.crankbreaks) {
+          p('');
+          if (entry.crankType === 'routing') {
+            p(`// crank ${entry.crankNum}: routing`);
+          } else {
+            let vatName;
+            if (entry.message.type === 'create-vat') {
+              vatName = entry.message?.dynamicOptions?.name;
+            }
+            if (!vatName) {
+              vatName = vatLabel(currentVat);
+            }
+            const crankLabel = crankLabels.get(`${entry.crankNum}`);
+            const crankTag = crankLabel ? ` --- ${crankLabel}` : '';
+            // prettier-ignore
+            p(`// crank ${entry.crankNum}: ${currentVat} ${vatName}${crankTag}`);
+          }
+        }
       }
     }
     if (summary[type]) {
@@ -220,12 +249,14 @@ export function main() {
     } else {
       summary[type] = 1;
     }
-    const handler = handlers[type] || defaultHandler;
-    try {
-      handler(entry);
-    } catch (err) {
-      p(`// handler problem on line ${lineNumber}`);
-      throw err;
+    if (entry.crankNum !== skipCrank) {
+      const handler = handlers[type] || defaultHandler;
+      try {
+        handler(entry);
+      } catch (err) {
+        p(`// handler problem on line ${lineNumber}`);
+        throw err;
+      }
     }
     line = lines.next();
   }
@@ -250,8 +281,8 @@ export function main() {
     p(`@ ${entry.type}: ${JSON.stringify(entry)}`);
   }
 
-  function vatLabel(entry) {
-    return vatNames.get(entry.vatID) || '<no name>';
+  function vatLabel(vatID) {
+    return vatNames.get(vatID) || '<no name>';
   }
 
   function handleSloggerConfused(_entry) {}
@@ -268,7 +299,7 @@ export function main() {
       vatNames.set(entry.vatID, entry.name);
     }
     // prettier-ignore
-    p(`create-vat: ${entry.vatID} ${vatLabel(entry)} ${entry.dynamic ? 'dynamic' : 'static'} ${entry.description}`);
+    p(`create-vat: ${entry.vatID} ${vatLabel(entry.vatID)} ${entry.dynamic ? 'dynamic' : 'static'} "${entry.description}"`);
   }
 
   function pref(ref, ks = kernelSpace) {
@@ -282,64 +313,161 @@ export function main() {
     return name ? `<${name}>` : `@${ref}`;
   }
 
-  function legibilizeValue(val, slots) {
-    let result = '';
-    if (Array.isArray(val)) {
-      result = '[';
-      for (const elem of val) {
-        if (result.length !== 1) {
-          result += ', ';
+  function legibilizeValue(val, slots, smallcaps) {
+    let result;
+    try {
+      if (Array.isArray(val)) {
+        result = '[';
+        for (const elem of val) {
+          if (result.length !== 1) {
+            result += ', ';
+          }
+          result += legibilizeValue(elem, slots, smallcaps);
         }
-        result += legibilizeValue(elem, slots);
-      }
-      result += ']';
-    } else if (val && typeof val === 'object' && val.constructor === Object) {
-      const qClass = val['@qclass'];
-      if (qClass) {
-        switch (qClass) {
-          case 'undefined':
-          case 'NaN':
-          case 'Infinity':
-          case '-Infinity':
-            result = qClass;
-            break;
-          case 'bigint':
-            result = val.digits;
-            break;
-          case 'slot':
-            result = pref(slots[val.index]);
-            break;
-          case 'symbol':
-            result = `[${val.name}]`;
-            break;
-          case 'error':
-            result = `new ${val.name}('${val.message}')`;
-            break;
-          default:
-            Fail`unknown qClass ${qClass} in legibilizeValue`;
+        result += ']';
+      } else if (val && typeof val === 'object' && val.constructor === Object) {
+        const qClass = val['@qclass'];
+        if (qClass && !smallcaps) {
+          switch (qClass) {
+            case 'undefined':
+            case 'NaN':
+            case 'Infinity':
+            case '-Infinity':
+              result = qClass;
+              break;
+            case 'bigint':
+              result = val.digits;
+              break;
+            case 'slot':
+              result = pref(slots[val.index]);
+              break;
+            case 'symbol':
+              result = `[${val.name}]`;
+              break;
+            case '@@asyncIterator':
+              result = `[Symbol.asyncIterator]`;
+              break;
+            case 'error':
+              result = `new ${val.name}('${val.message}')`;
+              break;
+            default:
+              Fail`unknown qClass ${qClass} in legibilizeValue`;
+              break;
+          }
         }
-      } else {
         result = '{';
         for (const prop of Object.getOwnPropertyNames(val)) {
           if (result.length !== 1) {
             result += ', ';
           }
-          result += `${String(prop)}: ${legibilizeValue(val[prop], slots)}`;
+          // prettier-ignore
+          result += `${String(prop)}: ${legibilizeValue(val[prop], slots, smallcaps)}`;
         }
         result += '}';
+      } else if (val && typeof val === 'string' && smallcaps) {
+        const prefix = val.charAt(0);
+        const rest = val.substring(1);
+        switch (prefix) {
+          case '!':
+            result = `"${rest}"`;
+            break;
+          case '%':
+            result = `[${rest}]`;
+            break;
+          case '#':
+          case '+':
+          case '-':
+            result = rest;
+            break;
+          case '$':
+          case '&': {
+            const idx = Number(rest.slice(0, rest.indexOf('.')));
+            result = pref(slots[idx]);
+            break;
+          }
+          default:
+            result = JSON.stringify(val) || '<unintelligible value>';
+            break;
+        }
+      } else {
+        result = JSON.stringify(val) || '<unintelligible value>';
       }
-    } else {
-      result = JSON.stringify(val);
+    } catch {
+      result = '<unintelligible value>';
     }
     return result.length > bigWidth ? '<BIG>' : result;
   }
 
-  function legibilizeMessageArgs(args) {
+  function legibilizeMethod(method, smallcaps) {
     try {
-      return JSON.parse(args.body).map(arg => legibilizeValue(arg, args.slots));
-    } catch (e) {
-      console.error(e);
-      return [args];
+      if (typeof method === 'string') {
+        if (!smallcaps) {
+          return method;
+        }
+        const prefix = method.charAt(0);
+        const rest = method.substring(1);
+        switch (prefix) {
+          case '%':
+            return `[${rest}]`;
+          case '#':
+            if (rest === 'undefined') {
+              return '<funcall>';
+            } else {
+              return '<unintelligible method>';
+            }
+          case '!':
+            return rest;
+          case '+':
+          case '-':
+          case '$':
+          case '&':
+            return '<unintelligible method>';
+          default:
+            return method;
+        }
+      } else if (typeof method === 'symbol') {
+        return `[${method.toString()}]`;
+      } else if (method === undefined) {
+        return '<funcall>';
+      } else if (typeof method === 'object') {
+        if (smallcaps) {
+          return '<unintelligible method>';
+        }
+        const qclass = method['@qclass'];
+        if (qclass === 'undefined') {
+          return '<funcall>';
+        } else if (qclass === 'symbol') {
+          return `[${method.name}]`;
+        } else if (qclass === '@@asyncIterator') {
+          return `[Symbol.asyncIterator]`;
+        } else {
+          return '<invalid method type>';
+        }
+      } else {
+        return '<unintelligible method>';
+      }
+    } catch {
+      return '<unintelligible method>';
+    }
+  }
+
+  function legibilizeMessageArgs(methargsCapdata) {
+    try {
+      let smallcaps = false;
+      let bodyString = methargsCapdata.body;
+      if (bodyString.charAt(0) === '#') {
+        smallcaps = true;
+        bodyString = bodyString.substring(1);
+      }
+      const methargs = JSON.parse(bodyString);
+      const [method, args] = methargs;
+      const methodStr = legibilizeMethod(method, smallcaps);
+      const argsStrs = args.map(arg =>
+        legibilizeValue(arg, methargsCapdata.slots, smallcaps),
+      );
+      return [methodStr, argsStrs.join(', ')];
+    } catch {
+      return '<unintelligible message args>';
     }
   }
 
@@ -348,12 +476,36 @@ export function main() {
     return [method.replaceAll('"', ''), args.join(', ')];
   }
 
-  function pargs(args) {
-    return legibilizeMessageArgs(args).join(', ');
+  function legibilizeCallArgs(argsCapdata) {
+    try {
+      let smallcaps = false;
+      let bodyString = argsCapdata.body;
+      if (bodyString.charAt(0) === '#') {
+        smallcaps = true;
+        bodyString = bodyString.substring(1);
+      }
+      const args = JSON.parse(bodyString);
+      const argsStrs = args.map(arg =>
+        legibilizeValue(arg, argsCapdata.slots, smallcaps),
+      );
+      return argsStrs;
+    } catch {
+      return '<unintelligible call args>';
+    }
+  }
+
+  function pcallargs(args) {
+    return legibilizeCallArgs(args).join(', ');
   }
 
   function pdata(data) {
-    return legibilizeValue(JSON.parse(data.body), data.slots);
+    let smallcaps = false;
+    let bodyString = data.body;
+    if (bodyString.charAt(0) === '#') {
+      smallcaps = true;
+      bodyString = bodyString.substring(1);
+    }
+    return legibilizeValue(JSON.parse(bodyString), data.slots, smallcaps);
   }
 
   function doDeliverMessage(delivery, prefix = '') {
@@ -367,6 +519,7 @@ export function main() {
   function doDeliverNotify(delivery, prefix = '') {
     const resolutions = delivery[1];
     let idx = 0;
+    const single = resolutions.length === 1;
     for (const resolution of resolutions) {
       const [target, value] = resolution;
       let state;
@@ -396,7 +549,11 @@ export function main() {
       switch (state) {
         case 'fulfilled':
         case 'rejected':
-          p(`${prefix}${tag}: ${idx} ${pref(target)} := ${pdata(data)}`);
+          if (single) {
+            p(`${prefix}${tag}: ${pref(target)} := ${pdata(data)}`);
+          } else {
+            p(`${prefix}${tag}: ${idx} ${pref(target)} := ${pdata(data)}`);
+          }
           break;
         default:
           p(`notify: unknown state "${state}"`);
@@ -404,6 +561,11 @@ export function main() {
       }
       idx += 1;
     }
+  }
+
+  function doDeliverStartVat(delivery, prefix = '') {
+    // prettier-ignore
+    p(`${prefix}startVat: ${pdata(delivery[1])}`);
   }
 
   function doDeliverDropRetire(delivery, prefix = '') {
@@ -423,6 +585,9 @@ export function main() {
       case 'retireExports':
       case 'retireImports':
         doDeliverDropRetire(delivery, prefix);
+        break;
+      case 'startVat':
+        doDeliverStartVat(delivery, prefix);
         break;
       default:
         p(`deliver: unknown deliver type "${delivery[0]}"`);
@@ -460,50 +625,61 @@ export function main() {
   function doSyscallResolve(tag, entry) {
     let idx = 0;
     const resolutions = kernelSpace ? entry[2] : entry[1];
+    const single = resolutions.length === 1;
     for (const resolution of resolutions) {
       const [target, rejected, value] = resolution;
       const rejTag = rejected ? 'reject' : 'fulfill';
-      p(`${tag} ${idx} ${rejTag}: ${pref(target)} = ${pdata(value)}`);
+      if (single) {
+        p(`${tag} ${rejTag}: ${pref(target)} := ${pdata(value)}`);
+      } else {
+        p(`${tag} ${idx} ${rejTag}: ${pref(target)} := ${pdata(value)}`);
+      }
       idx += 1;
     }
   }
 
   function doSyscallInvoke(tag, entry) {
-    p(`${tag}: ${pref(entry[1])}.${entry[2]}(${pargs(entry[3])})`);
+    p(`${tag}: ${pref(entry[1])}.${entry[2]}(${pcallargs(entry[3])})`);
   }
 
   function doSyscallSubscribe(tag, entry) {
-    p(`${tag}: ${pref(kernelSpace ? entry[2] : entry[1])}`);
+    if (!argv.nonoise) {
+      p(`${tag}: ${pref(kernelSpace ? entry[2] : entry[1])}`);
+    }
   }
 
   function doSyscallVatstoreDeleteOrGet(tag, entry) {
-    const key = kernelSpace ? entry[2] : entry[1];
-    p(`${tag}: '${key}' (${pref(key, false)})`);
+    if (!argv.novatstore) {
+      const key = kernelSpace ? entry[2] : entry[1];
+      p(`${tag}: '${key}' (${pref(key, false)})`);
+    }
   }
 
-  function doSyscallVatstoreGetAfter(tag, entry) {
-    const priorKey = kernelSpace ? entry[2] : entry[1];
-    const lowerBound = kernelSpace ? entry[3] : entry[2];
-    const upperBound = kernelSpace ? entry[4] : entry[3];
-    p(`${tag}: '${priorKey}' '${lowerBound}' .. '${upperBound}'`);
+  function doSyscallVatstoreGetNextKey(tag, entry) {
+    if (!argv.novatstore) {
+      const priorKey = kernelSpace ? entry[2] : entry[1];
+      p(`${tag}: '${priorKey}'`);
+    }
   }
 
   function doSyscallVatstoreSet(tag, entry) {
-    const key = kernelSpace ? entry[2] : entry[1];
-    const value = kernelSpace ? entry[3] : entry[2];
-    /*
-    const data = JSON.parse(value);
-    if (key.startsWith('ws')) {
-      p(`${tag}: '${key}' (${pref(key, false)}) = ${pdata(data)}`);
-    } else {
-      const interp = {};
-      for (const [id, val] of Object.entries(data)) {
-        interp[id] = pdata(val);
-      }
-      p(`${tag}: '${key}' (${pref(key, false)}) = ${JSON.stringify(interp)}`);
+    if (!argv.novatstore) {
+      const key = kernelSpace ? entry[2] : entry[1];
+      const value = kernelSpace ? entry[3] : entry[2];
+      /*
+        const data = JSON.parse(value);
+        if (key.startsWith('ws')) {
+          p(`${tag}: '${key}' (${pref(key, false)}) = ${pdata(data)}`);
+        } else {
+          const interp = {};
+          for (const [id, val] of Object.entries(data)) {
+            interp[id] = pdata(val);
+          }
+          p(`${tag}: '${key}' (${pref(key, false)}) = ${JSON.stringify(interp)}`);
+        }
+      */
+      p(`${tag}: ${key} := '${value}'`);
     }
-    */
-    p(`${tag}: ${key} := '${value}'`);
   }
 
   function doSyscallDropRetire(tag, entry) {
@@ -542,8 +718,8 @@ export function main() {
       case 'vatstoreSet':
         doSyscallVatstoreSet(tag, syscall);
         break;
-      case 'vatstoreGetAfter':
-        doSyscallVatstoreGetAfter(tag, syscall);
+      case 'vatstoreGetNextKey':
+        doSyscallVatstoreGetNextKey(tag, syscall);
         break;
       case 'dropImports':
       case 'retireExports':
@@ -574,12 +750,16 @@ export function main() {
   }
 
   function handleCrankStart(entry) {
-    p(`crank-start: ${entry.crankType} crank ${entry.crankNum}`);
+    if (!argv.nonoise) {
+      p(`crank-start: ${entry.crankType} crank ${entry.crankNum}`);
+    }
     crankStartTime = entry.time;
   }
 
   function handleCrankFinish(entry) {
-    p(`crank-finish: ${entry.time - crankStartTime} crank ${entry.crankNum}`);
+    if (!argv.nonoise) {
+      p(`crank-finish: ${entry.time - crankStartTime} crank ${entry.crankNum}`);
+    }
   }
 
   function handleBundleKernelStart(entry) {
@@ -736,8 +916,6 @@ export function main() {
       case 'resolve':
       case 'send':
       case 'subscribe':
-      case 'vatstoreDelete':
-      case 'vatstoreSet':
       case 'dropImports':
       case 'retireExports':
       case 'retireImports':
@@ -745,14 +923,22 @@ export function main() {
           p(`${tag}: unexpected value ${value}`);
         }
         break;
+      case 'vatstoreDelete':
+      case 'vatstoreSet':
+        if (!argv.vatstore) {
+          if (value !== null) {
+            p(`${tag}: unexpected value ${value}`);
+          }
+        }
+        break;
       case 'invoke':
         p(`${tag}: ${pdata(value)}`);
         break;
       case 'vatstoreGet':
-        p(`${tag}: '${value}'`);
-        break;
-      case 'vatstoreGetAfter':
-        p(`${tag}: ${value[0]}, ${value[1]}`);
+      case 'vatstoreGetNextKey':
+        if (!argv.novatstore) {
+          p(`${tag}: '${value}'`);
+        }
         break;
       default:
         p(`syscall-result missing start of syscall`);
@@ -767,7 +953,7 @@ export function main() {
   }
 
   function handleCList(entry) {
-    if (argv.clist) {
+    if (argv.clist && !argv.nonoise) {
       const { mode, vatID, kobj, vobj } = entry;
       const tag = terse ? mode : `clist ${mode}`;
       p(`${tag}: ${vatID}:${pref(vobj, false)} :: ${pref(kobj, true)}`);
