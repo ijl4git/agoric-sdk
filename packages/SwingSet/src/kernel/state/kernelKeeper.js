@@ -599,13 +599,22 @@ export default function makeKernelKeeper(kernelStorage, kernelSlog) {
   }
 
   function orphanKernelObjects(krefs, oldVat) {
+    const retiredKrefs = [];
     for (const kref of krefs) {
       const ownerKey = `${kref}.owner`;
       const ownerVat = kvStore.get(ownerKey);
       ownerVat === oldVat || Fail`export ${kref} not owned by old vat`;
       kvStore.delete(ownerKey);
-      // note that we do not delete the object here: it will be
+      if (getObjectRefCount(kref).reachable === 0) {
+        // unreachable orphans are retired: the original exporting vat
+        // won't be around to retire it
+        retiredKrefs.push(kref);
+      }
+      // else, note that we do not delete the object here: it will be
       // collected if/when all other references are dropped
+    }
+    if (retiredKrefs.length) {
+      retireKernelObjects(retiredKrefs);
     }
   }
 
