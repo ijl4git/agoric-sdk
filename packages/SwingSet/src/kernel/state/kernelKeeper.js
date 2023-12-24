@@ -584,6 +584,20 @@ export default function makeKernelKeeper(kernelStorage, kernelSlog) {
     return owner;
   }
 
+  function retireKernelObjects(koids) {
+    Array.isArray(koids) || Fail`retireExports given non-Array ${koids}`;
+    const newActions = [];
+    for (const koid of koids) {
+      const importers = getImporters(koid);
+      for (const vatID of importers) {
+        newActions.push(`${vatID} retireImport ${koid}`);
+      }
+      // TODO: decref and delete any #2069 auxdata
+      deleteKernelObject(koid);
+    }
+    addGCActions(newActions);
+  }
+
   function orphanKernelObjects(krefs, oldVat) {
     for (const kref of krefs) {
       const ownerKey = `${kref}.owner`;
@@ -1572,6 +1586,7 @@ export default function makeKernelKeeper(kernelStorage, kernelSlog) {
     ownerOfKernelDevice,
     kernelObjectExists,
     getImporters,
+    retireKernelObjects,
     orphanKernelObjects,
     deleteKernelObject,
     pinObject,
