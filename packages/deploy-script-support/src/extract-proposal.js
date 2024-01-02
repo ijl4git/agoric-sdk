@@ -43,7 +43,7 @@ const findModule = (initDir, srcSpec) =>
 /**
  * @param {{ bundleID?: string, bundleName?: string }} handle - mutated then hardened
  * @param {string} sourceSpec - the specifier of a module to load
- * @param {PropertyKey} key - the key of the proposal
+ * @param {string} key - the key of the proposal
  * @param {string} piece - the piece of the proposal
  * @returns {Promise<[string, any]>}
  */
