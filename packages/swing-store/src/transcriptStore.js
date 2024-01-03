@@ -93,11 +93,14 @@ export function makeTranscriptStore(
   // the identically named fields of the `transcriptSpans` table.  However,
   // these two fields are used slightly differently: since each row captures an
   // entire completed span, here the `endPos` field will not change over time.
-  // Strictly speaking, the `endPos` field is not actually needed, but we include it
-  // anyway as a redundant sanity check on the state of the record.  This table
-  // also lacks the `isCurrent` field, since in this table it would always have
-  // the value `false`, nor does it have the `incarnation` field since it would
-  // be uselessly redundant with the `transcriptSpans` table.
+  // Strictly speaking, the `endPos` field is not actually needed, but we
+  // include it anyway as a redundant sanity check on the state of the record.
+  // Similar reasoning applies to the `incarnation` value, which, while
+  // technically redundant, may prove useful when deleting all the spans in an
+  // incarnation without having to resort to looking at the items table to learn
+  // which spans those are.  This table also lacks the `isCurrent` field on the
+  // grounds that it would be completely useless since in this table it would
+  // always have the value `false`.
   db.exec(`
     CREATE TABLE IF NOT EXISTS transcriptCompressedSpans (
       vatID TEXT,
@@ -185,7 +188,7 @@ export function makeTranscriptStore(
     ORDER BY startPos
   `);
 
-  function* dumpTranscriptItems(vatID, startPos, endPos) {
+  function* dumpOneTranscriptSpan(vatID, startPos, endPos) {
     const compressedSpanReader = readCompressedSpan(vatID, startPos);
     if (compressedSpanReader) {
       let position = startPos;
@@ -204,7 +207,7 @@ export function makeTranscriptStore(
     const transcripts = {};
     for (const spanRow of sqlDumpSpansQuery.iterate()) {
       if (includeHistorical || spanRow.isCurrent) {
-        for (const row of dumpTranscriptItems(
+        for (const row of dumpOneTranscriptSpan(
           spanRow.vatID,
           spanRow.startPos,
           spanRow.endPos,
@@ -222,7 +225,7 @@ export function makeTranscriptStore(
 
   function* readFullVatTranscript(vatID) {
     for (const { startPos, endPos } of sqlDumpVatSpansQuery.iterate(vatID)) {
-      for (const row of dumpTranscriptItems(vatID, startPos, endPos)) {
+      for (const row of dumpOneTranscriptSpan(vatID, startPos, endPos)) {
         yield row;
       }
     }
