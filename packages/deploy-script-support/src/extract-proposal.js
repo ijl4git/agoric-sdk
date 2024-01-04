@@ -197,21 +197,21 @@ export const extractCoreProposalBundles = async (
         harden(proposal),
       );
 
-      const behaviorSource = pathResolve(initDir, sourceSpec);
-      const behaviors = await import(behaviorSource);
-      const [exportedGetManifest, ...manifestArgs] = getManifestCall;
+      const proposalSource = pathResolve(initDir, sourceSpec);
+      const proposalNS = await import(proposalSource);
+      const [manifestGetterName, ...manifestGetterArgs] = getManifestCall;
       assert(
-        exportedGetManifest in behaviors,
-        `behavior ${behaviorSource} missing ${exportedGetManifest}`,
+        manifestGetterName in proposalNS,
+        `proposal ${proposalSource} missing export ${manifestGetterName}`,
       );
-      const { manifest: customManifest } = await behaviors[
-        exportedGetManifest
-      ](harden({ restoreRef: () => null }), ...manifestArgs);
+      const { manifest: customManifest } = await proposalNS[
+        manifestGetterName
+      ](harden({ restoreRef: () => null }), ...manifestGetterArgs);
 
       const behaviorBundleHandle = {};
       const specEntry = await handleToBundleSpec(
         behaviorBundleHandle,
-        behaviorSource,
+        proposalSource,
         thisProposalSequence,
         'behaviors',
       );
@@ -220,7 +220,7 @@ export const extractCoreProposalBundles = async (
       bundleHandleToAbsolutePaths.set(
         behaviorBundleHandle,
         harden({
-          source: behaviorSource,
+          source: proposalSource,
         }),
       );
 
