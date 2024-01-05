@@ -199,9 +199,10 @@ export const extractCoreProposalBundles = async (
       const [manifestGetterName, ...manifestGetterArgs] = getManifestCall;
       manifestGetterName in proposalNS ||
         Fail`proposal ${proposalSource} missing export ${manifestGetterName}`;
-      const { manifest: customManifest } = await proposalNS[
-        manifestGetterName
-      ](harden({ restoreRef: () => null }), ...manifestGetterArgs);
+      const { manifest: customManifest } = await proposalNS[manifestGetterName](
+        harden({ restoreRef: () => null }),
+        ...manifestGetterArgs,
+      );
 
       const behaviorBundleHandle = {};
       const specEntry = await handleToBundleSpec(
