@@ -1,10 +1,10 @@
 // @ts-check
 import { test as anyTest } from '@agoric/zoe/tools/prepare-test-env-ava.js';
-import { eventLoopIteration } from '@agoric/notifier/tools/testSupports.js';
+import { eventLoopIteration } from '@agoric/internal/src/testing-utils.js';
 import { makeAgoricNamesRemotesFromFakeStorage } from '@agoric/vats/tools/board-utils.js';
 import { Offers } from '@agoric/inter-protocol/src/clientSupport.js';
-import { makeWalletFactoryDriver } from '../../tools/drivers';
-import { makeSwingsetTestKit } from '../../tools/supports';
+import { makeWalletFactoryDriver } from '../../tools/drivers.ts';
+import { makeSwingsetTestKit } from '../../tools/supports.ts';
 import {
   restartWalletFactoryScript,
   sendInvitationScript,
