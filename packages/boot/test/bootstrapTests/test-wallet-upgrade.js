@@ -141,7 +141,7 @@ test('update purse balance across walletFactory upgrade', async t => {
       json_permits: JSON.stringify({
         consume: { instancePrivateArgs: true, walletFactoryStartResult: true },
       }),
-      js_code: `(${restartWalletFactoryScript})()`,
+      js_code: `(${restartWalletFactoryScript})()`.replace('import(', 'XXX'),
     },
   ]);
 
@@ -166,7 +166,7 @@ test('update purse balance across walletFactory upgrade', async t => {
 
 test.todo('smartWallet created before upgrade works after');
 
-test.failing('offer lasts across zoe upgrade', async t => {
+test('offer lasts across zoe upgrade', async t => {
   const { walletFactoryDriver, agoricNamesRemotes } = t.context;
   const { runCoreEval } = await makeScenario(t);
 
@@ -174,10 +174,19 @@ test.failing('offer lasts across zoe upgrade', async t => {
   const bidderAddr = 'agoric1bidder';
   const bidderWallet = await walletFactoryDriver.provideSmartWallet(bidderAddr);
 
-  console.log(
-    '======== before IST swap',
-    bidderWallet.getCurrentWalletRecord(),
-  );
+  const checkLive = (label, expected) => {
+    const { liveOffers } = bidderWallet.getCurrentWalletRecord();
+    const ids = Object.keys(Object.fromEntries(liveOffers));
+    t.log(bidderAddr, 'liveOffers', label, ids);
+    t.is(liveOffers.length, expected, label);
+
+    const update = bidderWallet.getLatestUpdateRecord();
+    if (update.updated !== 'offerStatus') return;
+    const { error } = update.status;
+    t.is(error, undefined);
+  };
+
+  checkLive('before IST swap', 0);
 
   await bidderWallet.sendOffer(
     Offers.psm.swap(
@@ -186,10 +195,8 @@ test.failing('offer lasts across zoe upgrade', async t => {
       { offerId: `print-ist1`, wantMinted: 1_000, pair: ['IST', 'USDC_axl'] },
     ),
   );
-  console.log(
-    '======= IST swap done; bidding...',
-    bidderWallet.getCurrentWalletRecord(),
-  );
+
+  checkLive('between IST swap and bid', 0);
 
   const offerId = 'bid1';
   await bidderWallet.sendOfferMaker(Offers.auction.Bid, {
@@ -198,12 +205,9 @@ test.failing('offer lasts across zoe upgrade', async t => {
     maxBuy: '1000000 ATOM',
     price: 5,
   });
-  console.log(
-    'bid placed; upgrading...',
-    bidderWallet.getCurrentWalletRecord(),
-  );
 
-  t.log('upgrade zoe');
+  checkLive('between bid and zoe upgrade', 1);
+
   await runCoreEval([
     {
       json_permits: JSON.stringify({
@@ -213,20 +217,8 @@ test.failing('offer lasts across zoe upgrade', async t => {
     },
   ]);
 
-  const updateAfterUpgrade = bidderWallet.getLatestUpdateRecord();
-  t.is(updateAfterUpgrade.updated, 'offerStatus');
-  t.is(
-    updateAfterUpgrade.updated === 'offerStatus' &&
-      updateAfterUpgrade.status.error,
-    undefined,
-  );
+  checkLive('between upgrade and exit', 1);
 
-  console.log('======= upgraded update', bidderWallet.getLatestUpdateRecord());
-
-  console.log(
-    '========= upgraded current',
-    bidderWallet.getCurrentWalletRecord(),
-  );
-
-  t.fail('todo');
+  await bidderWallet.tryExitOffer(offerId);
+  checkLive('after exit', 0);
 });
