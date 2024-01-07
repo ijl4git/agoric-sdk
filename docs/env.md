@@ -49,8 +49,8 @@ Affects: agoric (CLI), ag-chain-cosmos, ag-solo
 
 Purpose: to change the meaning of `console.log` and other console methods
 
-Description: uses `anylogger` to change whether the following methods (in order
-of increasing severity) are active for a given context:
+Description: uses `anylogger` to change whether the following methods are active
+for a given context, in order of increasing severity:
 
 1. `console.debug`
 2. `console.log`
@@ -61,17 +61,16 @@ of increasing severity) are active for a given context:
 If not set, then default (`console.info` and above) logging is enabled.
 (`console.log` and `console.debug` logging is disabled.)
 
-If set to an empty string, or running in `ag-chain-cosmos start` mode, don't
-print any logs.  This is part of "consensus mode."
-
 Otherwise, set to a comma-separated list of strings.
 
 If one of those strings is
-- `agoric`, then print all console messages for the entire `agoric-sdk``.
+- `agoric:${level}`, then don't print `agoric-sdk` console messages below `${level}`.
+- `agoric:none`, then silence all `agoric-sdk` console messages.
+- `agoric` (an alias for `agoric:debug`) print all `agoric-sdk` console messages.
 - `track-turns`, then log errors at the top of the event-loop that may otherwise be unreported. See also the TRACK_TURNS environment variable below.
 - `label-instances`, then log exo instances with a unique label per instance. HAZARD This causes an information leak in the messages of thrown errors, which are available even to code without access to the console. Use with care.
 
-For each of those strings begins with a prefix recognized as indicating what
+For each of those strings beginning with a prefix recognized as indicating what
 console messages to enable, pass it to `makeConsole`. For example:
 
 - `DEBUG=SwingSet:ls` enable all console messages for liveslots, regardless of vat.
