@@ -3,8 +3,8 @@ import { makeScalarBigMapStore } from '@agoric/vat-data';
 import { AmountMath, makeIssuerKit } from '@agoric/ertp';
 import { buildManualTimer } from '@agoric/swingset-vat/tools/manual-timer.js';
 import { E } from '@endo/eventual-send';
-import { providePriceAuthorityRegistry } from '../../../tools/priceAuthorityRegistry.js';
-import { makeFakePriceAuthority } from '../../../tools/fakePriceAuthority.js';
+import { providePriceAuthorityRegistry } from '../src/priceAuthorityRegistry.js';
+import { makeFakePriceAuthority } from '../../zoe/tools/fakePriceAuthority.js';
 
 test('price authority confused stores', async t => {
   const baggage = makeScalarBigMapStore('test baggage');
