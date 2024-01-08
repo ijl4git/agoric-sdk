@@ -1,4 +1,4 @@
-export {};
+export { };
 
 /**
  * @template T
@@ -13,10 +13,16 @@ export {};
 /**
  * @template [T=any]
  * @typedef {{
+ *   promise: Promise<T>
+ * } & SerializableWhenableKit<T>} WhenableKit
+ */
+
+/**
+ * @template [T=any]
+ * @typedef {{
  *   whenable: import('./types.js').Whenable<T>,
  *   settler: Settler<T>,
- *   promise: Promise<T>
- * }} WhenableKit
+ * }} SerializableWhenableKit
  */
 
 /**
